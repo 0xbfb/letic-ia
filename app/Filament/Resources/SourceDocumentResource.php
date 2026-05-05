@@ -3,9 +3,11 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\SourceDocumentResource\Pages;
+use App\Jobs\ExtractDocumentTextJob;
 use App\Models\SourceDocument;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Actions\Action;
@@ -55,11 +57,35 @@ class SourceDocumentResource extends Resource
                 Tables\Columns\TextColumn::make('file_path')->label('Caminho do arquivo')->copyable()->limit(50)->tooltip(fn ($record) => $record->file_path),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')->options(['uploaded' => 'uploaded']),
+                Tables\Filters\SelectFilter::make('status')->options([
+                    'uploaded' => 'uploaded',
+                    'extracting' => 'extracting',
+                    'extracted' => 'extracted',
+                    'failed' => 'failed',
+                ]),
                 Tables\Filters\SelectFilter::make('file_type')->options(['txt' => 'txt', 'pdf' => 'pdf', 'docx' => 'docx']),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+                Action::make('extractText')
+                    ->label('Extrair texto')
+                    ->icon('heroicon-o-bolt')
+                    ->visible(fn (SourceDocument $record): bool => in_array($record->status, [SourceDocument::STATUS_UPLOADED, SourceDocument::STATUS_FAILED], true))
+                    ->action(function (SourceDocument $record): void {
+                        ExtractDocumentTextJob::dispatch($record->id);
+
+                        Notification::make()->title('Extração iniciada')->success()->send();
+                    }),
+                Action::make('viewExtractedText')
+                    ->label('Ver texto extraído')
+                    ->icon('heroicon-o-eye')
+                    ->visible(fn (SourceDocument $record): bool => ! empty($record->extracted_text_path) && Storage::disk('local')->exists($record->extracted_text_path))
+                    ->modalHeading(fn (SourceDocument $record): string => 'Texto extraído: '.$record->title)
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Fechar')
+                    ->modalContent(fn (SourceDocument $record) => view('filament.source-document.extracted-text', [
+                        'text' => Storage::disk('local')->get($record->extracted_text_path),
+                    ])),
                 Action::make('download')
                     ->label('Baixar/Abrir')
                     ->icon('heroicon-o-arrow-down-tray')
