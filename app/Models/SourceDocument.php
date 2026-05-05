@@ -12,6 +12,9 @@ class SourceDocument extends Model
     use SoftDeletes;
 
     public const STATUS_UPLOADED = 'uploaded';
+    public const STATUS_EXTRACTING = 'extracting';
+    public const STATUS_EXTRACTED = 'extracted';
+    public const STATUS_FAILED = 'failed';
 
     protected $fillable = [
         'title',
