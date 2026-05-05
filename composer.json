@@ -1,0 +1,10 @@
+{
+  "name": "letic-ia/leticia-seo-mvp",
+  "description": "MVP Laravel para ingestão e extração de documentos.",
+  "type": "project",
+  "require": {
+    "php": "^8.2",
+    "smalot/pdfparser": "^2.12",
+    "phpoffice/phpword": "^1.3"
+  }
+}
