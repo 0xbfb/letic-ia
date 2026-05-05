@@ -39,6 +39,10 @@ class SourceDocumentResource extends Resource
                         'application/pdf',
                         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                     ])
+                    ->helperText('Tipos suportados para extração: TXT, PDF (texto selecionável) e DOCX.')
+                    ->validationMessages([
+                        'required' => 'Envie um arquivo .txt, .pdf ou .docx.',
+                    ])
                     ->preserveFilenames(),
                 Forms\Components\Hidden::make('file_type')->required(),
                 Forms\Components\Hidden::make('status')->default(SourceDocument::STATUS_UPLOADED),
