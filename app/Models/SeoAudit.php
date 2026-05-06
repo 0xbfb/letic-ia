@@ -12,6 +12,7 @@ class SeoAudit extends Model
 
     protected $fillable = [
         'generated_post_id',
+        'audit_type',
         'score',
         'checks_json',
         'warnings_json',
