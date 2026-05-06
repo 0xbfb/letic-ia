@@ -14,7 +14,11 @@ class GeneratedPost extends Model
     use HasFactory;
     use SoftDeletes;
 
+    public const STATUS_GENERATED = 'generated';
     public const STATUS_NEEDS_REVIEW = 'needs_review';
+    public const STATUS_CHANGES_REQUESTED = 'changes_requested';
+    public const STATUS_APPROVED = 'approved';
+    public const STATUS_FAILED = 'failed';
 
     protected $fillable = [
         'content_brief_id',
@@ -64,5 +68,17 @@ class GeneratedPost extends Model
     public function latestEditorialAudit(): HasOne
     {
         return $this->hasOne(SeoAudit::class)->where('audit_type', 'editorial')->latestOfMany();
+    }
+
+    /** @return array<string, string> */
+    public static function reviewStatusOptions(): array
+    {
+        return [
+            self::STATUS_GENERATED => self::STATUS_GENERATED,
+            self::STATUS_NEEDS_REVIEW => self::STATUS_NEEDS_REVIEW,
+            self::STATUS_CHANGES_REQUESTED => self::STATUS_CHANGES_REQUESTED,
+            self::STATUS_APPROVED => self::STATUS_APPROVED,
+            self::STATUS_FAILED => self::STATUS_FAILED,
+        ];
     }
 }

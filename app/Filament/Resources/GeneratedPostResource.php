@@ -6,6 +6,7 @@ use App\Filament\Resources\GeneratedPostResource\Pages;
 use App\Filament\Resources\GeneratedPostResource\RelationManagers\PostVersionsRelationManager;
 use App\Models\GeneratedPost;
 use App\Models\LlmRun;
+use App\Services\Content\PostVersionService;
 use App\Services\Content\EditorialAuditService;
 use App\Services\Content\MetadataGeneratorService;
 use App\Services\Content\SeoAuditService;
@@ -32,17 +33,7 @@ class GeneratedPostResource extends Resource
                     Forms\Components\TextInput::make('slug')->required()->maxLength(255),
                     Forms\Components\Select::make('status')
                         ->required()
-                        ->options([
-                            'draft' => 'draft',
-                            'ready_to_generate' => 'ready_to_generate',
-                            'generating' => 'generating',
-                            'generated' => 'generated',
-                            'needs_review' => 'needs_review',
-                            'changes_requested' => 'changes_requested',
-                            'approved' => 'approved',
-                            'sent_to_wordpress' => 'sent_to_wordpress',
-                            'failed' => 'failed',
-                        ]),
+                        ->options(GeneratedPost::reviewStatusOptions()),
                     Forms\Components\Textarea::make('excerpt')->label('Resumo')->rows(4)->columnSpanFull(),
                 ])->columns(3),
 
@@ -179,7 +170,16 @@ class GeneratedPostResource extends Resource
         return $table->columns([
             Tables\Columns\TextColumn::make('title')->searchable()->sortable(),
             Tables\Columns\TextColumn::make('contentBrief.title')->label('Briefing')->toggleable(),
-            Tables\Columns\TextColumn::make('status')->badge()->sortable(),
+            Tables\Columns\TextColumn::make('status')
+                ->badge()
+                ->colors([
+                    'info' => GeneratedPost::STATUS_GENERATED,
+                    'gray' => GeneratedPost::STATUS_NEEDS_REVIEW,
+                    'warning' => GeneratedPost::STATUS_CHANGES_REQUESTED,
+                    'success' => GeneratedPost::STATUS_APPROVED,
+                    'danger' => GeneratedPost::STATUS_FAILED,
+                ])
+                ->sortable(),
             Tables\Columns\TextColumn::make('seo_score')->label('SEO Score')->sortable(),
             Tables\Columns\TextColumn::make('tone_score')->label('Tone')->sortable(),
             Tables\Columns\TextColumn::make('readability_score')->label('Readability')->sortable(),
@@ -192,6 +192,7 @@ class GeneratedPostResource extends Resource
             self::makeEditorialAuditAction(),
             self::makeApproveAction(),
             self::makeRequestAdjustmentsAction(),
+            self::makeBackToReviewAction(),
         ]);
     }
 
@@ -279,8 +280,38 @@ class GeneratedPostResource extends Resource
             ->icon('heroicon-o-check-circle')
             ->color('success')
             ->requiresConfirmation()
+            ->visible(fn (GeneratedPost $record): bool => in_array($record->status, [
+                GeneratedPost::STATUS_GENERATED,
+                GeneratedPost::STATUS_NEEDS_REVIEW,
+            ], true))
             ->action(function (GeneratedPost $record): void {
-                $record->update(['status' => 'approved']);
+                $seoErrors = data_get($record->latestSeoAudit, 'errors_json', []);
+                $hasCriticalSeoErrors = is_array($seoErrors) && count($seoErrors) > 0;
+
+                if (
+                    blank($record->content)
+                    || blank($record->title)
+                    || blank($record->slug)
+                    || blank($record->meta_description)
+                    || $hasCriticalSeoErrors
+                ) {
+                    Notification::make()
+                        ->title('Aprovação bloqueada.')
+                        ->body('Preencha conteúdo, título, slug, meta description e revise erros críticos de SEO antes de aprovar.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                $metadata = $record->metadata ?? [];
+                $metadata['approved_at'] = now()->toISOString();
+
+                $record->update([
+                    'status' => GeneratedPost::STATUS_APPROVED,
+                    'approved_by' => auth()->id(),
+                    'metadata' => $metadata,
+                ]);
 
                 Notification::make()->title('Post aprovado.')->success()->send();
             });
@@ -292,11 +323,58 @@ class GeneratedPostResource extends Resource
             ->label('Solicitar ajustes')
             ->icon('heroicon-o-pencil-square')
             ->color('warning')
-            ->requiresConfirmation()
-            ->action(function (GeneratedPost $record): void {
-                $record->update(['status' => 'changes_requested']);
+            ->form([
+                Forms\Components\Textarea::make('adjustments_note')
+                    ->label('Observação para ajustes')
+                    ->required()
+                    ->minLength(5)
+                    ->rows(4),
+            ])
+            ->visible(fn (GeneratedPost $record): bool => in_array($record->status, [
+                GeneratedPost::STATUS_GENERATED,
+                GeneratedPost::STATUS_NEEDS_REVIEW,
+                GeneratedPost::STATUS_APPROVED,
+            ], true))
+            ->action(function (GeneratedPost $record, array $data, PostVersionService $postVersionService): void {
+                $metadata = $record->metadata ?? [];
+                $reviewNotes = $metadata['review_notes'] ?? [];
+                $reviewNotes[] = [
+                    'type' => GeneratedPost::STATUS_CHANGES_REQUESTED,
+                    'note' => $data['adjustments_note'],
+                    'created_at' => now()->toISOString(),
+                    'created_by' => auth()->id(),
+                ];
+                $metadata['review_notes'] = $reviewNotes;
+
+                $record->update([
+                    'status' => GeneratedPost::STATUS_CHANGES_REQUESTED,
+                    'metadata' => $metadata,
+                ]);
+
+                $postVersionService->createVersionIfChanged(
+                    $record->refresh(),
+                    'Solicitação de ajustes: '.$data['adjustments_note']
+                );
 
                 Notification::make()->title('Ajustes solicitados.')->success()->send();
+            });
+    }
+
+    public static function makeBackToReviewAction(): Action
+    {
+        return Action::make('back_to_review')
+            ->label('Voltar para revisão')
+            ->icon('heroicon-o-arrow-uturn-left')
+            ->color('gray')
+            ->requiresConfirmation()
+            ->visible(fn (GeneratedPost $record): bool => in_array($record->status, [
+                GeneratedPost::STATUS_CHANGES_REQUESTED,
+                GeneratedPost::STATUS_APPROVED,
+                GeneratedPost::STATUS_FAILED,
+            ], true))
+            ->action(function (GeneratedPost $record): void {
+                $record->update(['status' => GeneratedPost::STATUS_NEEDS_REVIEW]);
+                Notification::make()->title('Post retornou para revisão.')->success()->send();
             });
     }
 }
