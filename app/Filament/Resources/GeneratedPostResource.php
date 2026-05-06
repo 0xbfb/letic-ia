@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\GeneratedPostResource\Pages;
 use App\Filament\Resources\GeneratedPostResource\RelationManagers\PostVersionsRelationManager;
 use App\Models\GeneratedPost;
+use App\Models\LlmRun;
 use App\Services\Content\EditorialAuditService;
 use App\Services\Content\MetadataGeneratorService;
 use App\Services\Content\SeoAuditService;
@@ -13,6 +14,7 @@ use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Actions\Action;
 use Filament\Tables\Table;
 
 class GeneratedPostResource extends Resource
@@ -24,60 +26,148 @@ class GeneratedPostResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\TextInput::make('title')->required()->maxLength(255),
-            Forms\Components\TextInput::make('slug')->required()->maxLength(255),
-            Forms\Components\Textarea::make('excerpt')->rows(3),
-            Forms\Components\MarkdownEditor::make('content')->required()->columnSpanFull(),
-            Forms\Components\KeyValue::make('faq_json')->label('FAQ JSON')->columnSpanFull(),
-            Forms\Components\KeyValue::make('cta_json')->label('CTA JSON')->columnSpanFull(),
-            Forms\Components\TextInput::make('status')->required()->maxLength(32),
-            Forms\Components\TextInput::make('seo_score')->label('SEO Score')->numeric()->readOnly(),
-            Forms\Components\TextInput::make('tone_score')->label('Tone Score')->numeric()->readOnly(),
-            Forms\Components\TextInput::make('readability_score')->label('Readability Score')->numeric()->readOnly(),
-            Forms\Components\Textarea::make('latestSeoAudit.checks_json')
-                ->label('SEO Checks (última auditoria)')
-                ->formatStateUsing(fn ($state): string => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) ?: '[]')
-                ->rows(10)
-                ->readOnly()
-                ->dehydrated(false)
-                ->columnSpanFull(),
-            Forms\Components\Textarea::make('latestEditorialAudit.checks_json')
-                ->label('Auditoria editorial: checks (última execução)')
-                ->formatStateUsing(fn ($state): string => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) ?: '[]')
-                ->rows(10)
-                ->readOnly()
-                ->dehydrated(false)
-                ->columnSpanFull(),
-            Forms\Components\Textarea::make('latestEditorialAudit.errors_json')
-                ->label('Auditoria editorial: problemas (última execução)')
-                ->formatStateUsing(fn ($state): string => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) ?: '[]')
-                ->rows(6)
-                ->readOnly()
-                ->dehydrated(false)
-                ->columnSpanFull(),
-            Forms\Components\Textarea::make('latestEditorialAudit.warnings_json')
-                ->label('Auditoria editorial: sugestões (última execução)')
-                ->formatStateUsing(fn ($state): string => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) ?: '[]')
-                ->rows(6)
-                ->readOnly()
-                ->dehydrated(false)
-                ->columnSpanFull(),
-            Forms\Components\Textarea::make('latestSeoAudit.warnings_json')
-                ->label('SEO Warnings (última auditoria)')
-                ->formatStateUsing(fn ($state): string => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) ?: '[]')
-                ->rows(6)
-                ->readOnly()
-                ->dehydrated(false)
-                ->columnSpanFull(),
-            Forms\Components\Textarea::make('latestSeoAudit.errors_json')
-                ->label('SEO Errors (última auditoria)')
-                ->formatStateUsing(fn ($state): string => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) ?: '[]')
-                ->rows(6)
-                ->readOnly()
-                ->dehydrated(false)
-                ->columnSpanFull(),
+            Forms\Components\Section::make('Dados principais')
+                ->schema([
+                    Forms\Components\TextInput::make('title')->label('Título')->required()->maxLength(255),
+                    Forms\Components\TextInput::make('slug')->required()->maxLength(255),
+                    Forms\Components\Select::make('status')
+                        ->required()
+                        ->options([
+                            'draft' => 'draft',
+                            'ready_to_generate' => 'ready_to_generate',
+                            'generating' => 'generating',
+                            'generated' => 'generated',
+                            'needs_review' => 'needs_review',
+                            'changes_requested' => 'changes_requested',
+                            'approved' => 'approved',
+                            'sent_to_wordpress' => 'sent_to_wordpress',
+                            'failed' => 'failed',
+                        ]),
+                    Forms\Components\Textarea::make('excerpt')->label('Resumo')->rows(4)->columnSpanFull(),
+                ])->columns(3),
+
+            Forms\Components\Section::make('SEO')
+                ->schema([
+                    Forms\Components\TextInput::make('meta_title')->label('Meta title')->maxLength(255),
+                    Forms\Components\Textarea::make('meta_description')->label('Meta description')->rows(3)->columnSpanFull(),
+                    Forms\Components\TextInput::make('seo_score')->label('Score SEO')->numeric()->readOnly(),
+                    Forms\Components\TextInput::make('tone_score')->label('Score editorial (tom)')->numeric()->readOnly(),
+                    Forms\Components\TextInput::make('readability_score')->label('Score editorial (legibilidade)')->numeric()->readOnly(),
+                ])->columns(3),
+
+            Forms\Components\Section::make('Conteúdo')
+                ->schema([
+                    Forms\Components\MarkdownEditor::make('content')
+                        ->label('Conteúdo (Markdown)')
+                        ->required()
+                        ->columnSpanFull(),
+                ]),
+
+            Forms\Components\Section::make('FAQ')
+                ->schema([
+                    Forms\Components\KeyValue::make('faq_json')->label('FAQ')->columnSpanFull(),
+                ]),
+
+            Forms\Components\Section::make('CTAs')
+                ->schema([
+                    Forms\Components\KeyValue::make('cta_json')->label('CTAs')->columnSpanFull(),
+                ]),
+
+            Forms\Components\Section::make('Auditorias')
+                ->schema([
+                    Forms\Components\Textarea::make('latestSeoAudit.checks_json')
+                        ->label('Última auditoria SEO - checks')
+                        ->formatStateUsing(fn ($state): string => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) ?: '[]')
+                        ->rows(8)
+                        ->readOnly()
+                        ->dehydrated(false)
+                        ->columnSpanFull(),
+                    Forms\Components\Textarea::make('latestSeoAudit.warnings_json')
+                        ->label('Última auditoria SEO - avisos')
+                        ->formatStateUsing(fn ($state): string => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) ?: '[]')
+                        ->rows(5)
+                        ->readOnly()
+                        ->dehydrated(false)
+                        ->columnSpan(1),
+                    Forms\Components\Textarea::make('latestSeoAudit.errors_json')
+                        ->label('Última auditoria SEO - erros')
+                        ->formatStateUsing(fn ($state): string => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) ?: '[]')
+                        ->rows(5)
+                        ->readOnly()
+                        ->dehydrated(false)
+                        ->columnSpan(1),
+                    Forms\Components\Textarea::make('latestEditorialAudit.checks_json')
+                        ->label('Última auditoria editorial - checks')
+                        ->formatStateUsing(fn ($state): string => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) ?: '[]')
+                        ->rows(8)
+                        ->readOnly()
+                        ->dehydrated(false)
+                        ->columnSpanFull(),
+                    Forms\Components\Textarea::make('latestEditorialAudit.warnings_json')
+                        ->label('Última auditoria editorial - sugestões')
+                        ->formatStateUsing(fn ($state): string => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) ?: '[]')
+                        ->rows(5)
+                        ->readOnly()
+                        ->dehydrated(false),
+                    Forms\Components\Textarea::make('latestEditorialAudit.errors_json')
+                        ->label('Última auditoria editorial - problemas')
+                        ->formatStateUsing(fn ($state): string => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) ?: '[]')
+                        ->rows(5)
+                        ->readOnly()
+                        ->dehydrated(false),
+                ])->columns(2),
+
+            Forms\Components\Section::make('Versões')
+                ->description('Histórico completo disponível no bloco de relacionamento abaixo do formulário.'),
+
+            Forms\Components\Section::make('Logs LLM relacionados')
+                ->schema([
+                    Forms\Components\Placeholder::make('related_llm_runs')
+                        ->label('Últimos logs (post e briefing)')
+                        ->content(function (?GeneratedPost $record): string {
+                            if (! $record) {
+                                return 'Sem registro carregado.';
+                            }
+
+                            $relatedIds = [$record->id];
+                            if ($record->content_brief_id) {
+                                $relatedIds[] = $record->content_brief_id;
+                            }
+
+                            $runs = LlmRun::query()
+                                ->where(function ($query) use ($record, $relatedIds) {
+                                    $query->where('related_type', GeneratedPost::class)
+                                        ->whereIn('related_id', $relatedIds)
+                                        ->orWhere(function ($nested) use ($record) {
+                                            $nested->where('related_type', 'App\\Models\\ContentBrief')
+                                                ->where('related_id', $record->content_brief_id);
+                                        });
+                                })
+                                ->latest()
+                                ->limit(8)
+                                ->get();
+
+                            if ($runs->isEmpty()) {
+                                return 'Nenhum llm_run relacionado encontrado.';
+                            }
+
+                            return $runs
+                                ->map(fn (LlmRun $run): string => sprintf(
+                                    '[%s] %s | op=%s | model=%s | duração=%sms | related=%s#%s',
+                                    $run->created_at?->format('d/m/Y H:i:s') ?? '-',
+                                    $run->status,
+                                    $run->operation,
+                                    $run->model,
+                                    $run->duration_ms ?? '-',
+                                    $run->related_type,
+                                    $run->related_id,
+                                ))
+                                ->implode("\n");
+                        }),
+                ]),
+
             Forms\Components\Textarea::make('change_summary')
-                ->label('Resumo da alteração para histórico')
+                ->label('Resumo da alteração para histórico de versões')
                 ->rows(3)
                 ->dehydrated(true)
                 ->columnSpanFull(),
@@ -97,55 +187,11 @@ class GeneratedPostResource extends Resource
         ])->actions([
             Tables\Actions\ViewAction::make(),
             Tables\Actions\EditAction::make(),
-            Tables\Actions\Action::make('generate_seo_metadata')
-                ->label('Gerar metadados SEO')
-                ->icon('heroicon-o-sparkles')
-                ->requiresConfirmation()
-                ->action(function (GeneratedPost $record, MetadataGeneratorService $metadataGeneratorService): void {
-                    $success = $metadataGeneratorService->generateForPost($record);
-
-                    Notification::make()
-                        ->title($success ? 'Metadados SEO gerados.' : 'Falha ao gerar metadados SEO.')
-                        ->success($success)
-                        ->danger(! $success)
-                        ->send();
-                }),
-            Tables\Actions\Action::make('run_seo_checklist')
-                ->label('Rodar checklist SEO')
-                ->icon('heroicon-o-check-badge')
-                ->requiresConfirmation()
-                ->action(function (GeneratedPost $record, SeoAuditService $seoAuditService): void {
-                    $audit = $seoAuditService->runForPost($record);
-
-                    Notification::make()
-                        ->title('Checklist SEO executado com sucesso.')
-                        ->body('Score calculado: '.$audit->score)
-                        ->success()
-                        ->send();
-                }),
-            Tables\Actions\Action::make('run_editorial_audit')
-                ->label('Rodar auditoria editorial')
-                ->icon('heroicon-o-chat-bubble-left-ellipsis')
-                ->requiresConfirmation()
-                ->action(function (GeneratedPost $record, EditorialAuditService $editorialAuditService): void {
-                    $audit = $editorialAuditService->runForPost($record);
-
-                    if ($audit === null) {
-                        Notification::make()
-                            ->title('Falha na auditoria editorial.')
-                            ->body('A resposta do LLM foi inválida ou houve erro de execução. Verifique llm_runs.')
-                            ->danger()
-                            ->send();
-
-                        return;
-                    }
-
-                    Notification::make()
-                        ->title('Auditoria editorial executada com sucesso.')
-                        ->body('Score editorial: '.$audit->score)
-                        ->success()
-                        ->send();
-                }),
+            self::makeGenerateMetadataAction(),
+            self::makeSeoChecklistAction(),
+            self::makeEditorialAuditAction(),
+            self::makeApproveAction(),
+            self::makeRequestAdjustmentsAction(),
         ]);
     }
 
@@ -163,5 +209,94 @@ class GeneratedPostResource extends Resource
             'view' => Pages\ViewGeneratedPost::route('/{record}'),
             'edit' => Pages\EditGeneratedPost::route('/{record}/edit'),
         ];
+    }
+
+    public static function makeGenerateMetadataAction(): Action
+    {
+        return Action::make('generate_seo_metadata')
+            ->label('Gerar metadados')
+            ->icon('heroicon-o-sparkles')
+            ->requiresConfirmation()
+            ->action(function (GeneratedPost $record, MetadataGeneratorService $metadataGeneratorService): void {
+                $success = $metadataGeneratorService->generateForPost($record);
+
+                Notification::make()
+                    ->title($success ? 'Metadados SEO gerados.' : 'Falha ao gerar metadados SEO.')
+                    ->success($success)
+                    ->danger(! $success)
+                    ->send();
+            });
+    }
+
+    public static function makeSeoChecklistAction(): Action
+    {
+        return Action::make('run_seo_checklist')
+            ->label('Rodar checklist SEO')
+            ->icon('heroicon-o-check-badge')
+            ->requiresConfirmation()
+            ->action(function (GeneratedPost $record, SeoAuditService $seoAuditService): void {
+                $audit = $seoAuditService->runForPost($record);
+
+                Notification::make()
+                    ->title('Checklist SEO executado com sucesso.')
+                    ->body('Score calculado: '.$audit->score)
+                    ->success()
+                    ->send();
+            });
+    }
+
+    public static function makeEditorialAuditAction(): Action
+    {
+        return Action::make('run_editorial_audit')
+            ->label('Rodar auditoria editorial')
+            ->icon('heroicon-o-chat-bubble-left-ellipsis')
+            ->requiresConfirmation()
+            ->action(function (GeneratedPost $record, EditorialAuditService $editorialAuditService): void {
+                $audit = $editorialAuditService->runForPost($record);
+
+                if ($audit === null) {
+                    Notification::make()
+                        ->title('Falha na auditoria editorial.')
+                        ->body('A resposta do LLM foi inválida ou houve erro de execução. Verifique llm_runs.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                Notification::make()
+                    ->title('Auditoria editorial executada com sucesso.')
+                    ->body('Score editorial: '.$audit->score)
+                    ->success()
+                    ->send();
+            });
+    }
+
+    public static function makeApproveAction(): Action
+    {
+        return Action::make('approve_post')
+            ->label('Aprovar')
+            ->icon('heroicon-o-check-circle')
+            ->color('success')
+            ->requiresConfirmation()
+            ->action(function (GeneratedPost $record): void {
+                $record->update(['status' => 'approved']);
+
+                Notification::make()->title('Post aprovado.')->success()->send();
+            });
+    }
+
+    public static function makeRequestAdjustmentsAction(): Action
+    {
+        return Action::make('request_adjustments')
+            ->label('Solicitar ajustes')
+            ->icon('heroicon-o-pencil-square')
+            ->color('warning')
+            ->requiresConfirmation()
+            ->action(function (GeneratedPost $record): void {
+                $record->update(['status' => 'changes_requested']);
+
+                Notification::make()->title('Ajustes solicitados.')->success()->send();
+            });
     }
 }
