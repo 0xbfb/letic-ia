@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ContentBriefResource\Pages;
 use App\Jobs\GenerateOutlineFromBriefJob;
+use App\Jobs\GeneratePostArticleJob;
 use App\Models\ContentBrief;
 use App\Models\SourceDocument;
 use App\Services\Content\BriefingBuilderService;
@@ -56,6 +57,8 @@ class ContentBriefResource extends Resource
                 ContentBrief::STATUS_READY_TO_GENERATE => 'ready_to_generate',
                 ContentBrief::STATUS_GENERATING => 'generating',
                 ContentBrief::STATUS_GENERATED_OUTLINE => 'generated_outline',
+                ContentBrief::STATUS_GENERATED_ARTICLE => 'generated_article',
+                ContentBrief::STATUS_GENERATED_ARTICLE => 'generated_article',
             ])->default(ContentBrief::STATUS_DRAFT)->required(),
             Forms\Components\Hidden::make('created_by'),
         ]);
@@ -75,6 +78,7 @@ class ContentBriefResource extends Resource
                 ContentBrief::STATUS_READY_TO_GENERATE => 'ready_to_generate',
                 ContentBrief::STATUS_GENERATING => 'generating',
                 ContentBrief::STATUS_GENERATED_OUTLINE => 'generated_outline',
+                ContentBrief::STATUS_GENERATED_ARTICLE => 'generated_article',
             ]),
             Tables\Filters\SelectFilter::make('content_type'),
         ])->actions([
@@ -114,6 +118,15 @@ class ContentBriefResource extends Resource
                     $record->update(['status' => ContentBrief::STATUS_GENERATING]);
                     GenerateOutlineFromBriefJob::dispatch($record->id);
                     Notification::make()->title('Geração de outline iniciada')->success()->send();
+                }),
+            Action::make('generateArticle')
+                ->label('Gerar artigo')
+                ->icon('heroicon-o-pencil-square')
+                ->visible(fn (ContentBrief $record): bool => is_array(data_get($record->metadata, 'outline')))
+                ->requiresConfirmation()
+                ->action(function (ContentBrief $record): void {
+                    GeneratePostArticleJob::dispatch($record->id);
+                    Notification::make()->title('Geração de artigo iniciada')->success()->send();
                 }),
             Action::make('viewOutline')
                 ->label('Ver outline')
