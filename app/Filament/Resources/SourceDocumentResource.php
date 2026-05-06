@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\SourceDocumentResource\Pages;
+use App\Jobs\ChunkDocumentJob;
 use App\Jobs\ExtractDocumentTextJob;
 use App\Models\SourceDocument;
 use Filament\Forms;
@@ -65,6 +66,9 @@ class SourceDocumentResource extends Resource
                     'uploaded' => 'uploaded',
                     'extracting' => 'extracting',
                     'extracted' => 'extracted',
+                    'chunking' => 'chunking',
+                    'chunked' => 'chunked',
+                    'embedded_pending' => 'embedded_pending',
                     'failed' => 'failed',
                 ]),
                 Tables\Filters\SelectFilter::make('file_type')->options(['txt' => 'txt', 'pdf' => 'pdf', 'docx' => 'docx']),
@@ -80,6 +84,27 @@ class SourceDocumentResource extends Resource
 
                         Notification::make()->title('Extração iniciada')->success()->send();
                     }),
+
+                Action::make('generateChunks')
+                    ->label('Gerar chunks')
+                    ->icon('heroicon-o-queue-list')
+                    ->visible(fn (SourceDocument $record): bool => in_array($record->status, [SourceDocument::STATUS_EXTRACTED, SourceDocument::STATUS_FAILED], true))
+                    ->action(function (SourceDocument $record): void {
+                        ChunkDocumentJob::dispatch($record->id);
+
+                        Notification::make()->title('Geração de chunks iniciada')->success()->send();
+                    }),
+                Action::make('viewChunks')
+                    ->label('Ver chunks')
+                    ->icon('heroicon-o-list-bullet')
+                    ->visible(fn (SourceDocument $record): bool => $record->chunks()->count() > 0)
+                    ->modalHeading(fn (SourceDocument $record): string => 'Chunks: '.$record->title)
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Fechar')
+                    ->modalContent(fn (SourceDocument $record) => view('filament.source-document.chunks-list', [
+                        'chunks' => $record->chunks()->get(),
+                    ])),
+
                 Action::make('viewExtractedText')
                     ->label('Ver texto extraído')
                     ->icon('heroicon-o-eye')
