@@ -9,6 +9,8 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class GenerateOutlineFromBriefJob implements ShouldQueue
 {
@@ -24,12 +26,33 @@ class GenerateOutlineFromBriefJob implements ShouldQueue
 
     public function handle(OutlineGeneratorService $outlineGeneratorService): void
     {
+        $startedAt = microtime(true);
         $brief = ContentBrief::query()->find($this->briefId);
 
         if (! $brief) {
+            Log::warning('Briefing não encontrado para geração de outline.', [
+                'brief_id' => $this->briefId,
+                'operation' => 'generate_outline',
+            ]);
             return;
         }
 
-        $outlineGeneratorService->generate($brief);
+        try {
+            $outlineGeneratorService->generate($brief);
+            Log::info('Job de geração de outline finalizado.', [
+                'brief_id' => $brief->id,
+                'operation' => 'generate_outline',
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            ]);
+        } catch (Throwable $exception) {
+            Log::error('Falha no job de geração de outline.', [
+                'brief_id' => $brief->id,
+                'operation' => 'generate_outline',
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'error_message' => $exception->getMessage(),
+            ]);
+
+            throw $exception;
+        }
     }
 }

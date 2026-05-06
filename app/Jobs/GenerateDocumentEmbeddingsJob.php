@@ -27,6 +27,7 @@ class GenerateDocumentEmbeddingsJob implements ShouldQueue
 
     public function handle(DocumentEmbeddingService $embeddingService): void
     {
+        $startedAt = microtime(true);
         $document = SourceDocument::query()->with('chunks')->find($this->documentId);
 
         if (! $document) {
@@ -46,8 +47,10 @@ class GenerateDocumentEmbeddingsJob implements ShouldQueue
                 $failedChunks++;
                 Log::error('Falha ao gerar embedding para chunk.', [
                     'document_id' => $document->id,
+                    'operation' => 'generate_embedding',
+                    'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
                     'chunk_id' => $chunk->id,
-                    'error' => $exception->getMessage(),
+                    'error_message' => $exception->getMessage(),
                 ]);
             }
         }
@@ -61,5 +64,11 @@ class GenerateDocumentEmbeddingsJob implements ShouldQueue
         if ($remaining === 0) {
             $document->update(['status' => SourceDocument::STATUS_EMBEDDED]);
         }
+
+        Log::info('Job de embeddings finalizado.', [
+            'document_id' => $document->id,
+            'operation' => 'generate_embedding',
+            'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+        ]);
     }
 }
