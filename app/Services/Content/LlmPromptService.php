@@ -103,4 +103,49 @@ PROMPT;
             ['role' => 'user', 'content' => json_encode($userPrompt, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)],
         ];
     }
+
+    /**
+     * @param  array<int, string>  $secondaryKeywords
+     */
+    public function buildMetadataPrompt(
+        string $title,
+        string $content,
+        string $mainKeyword,
+        array $secondaryKeywords,
+        string $targetAudience,
+        string $searchIntent,
+    ): array {
+        $systemPrompt = <<<'PROMPT'
+Você é especialista em SEO on-page.
+Responda SOMENTE em JSON válido (sem markdown).
+Objetivo: gerar metadados SEO úteis, claros e naturais.
+Regras obrigatórias:
+- Considerar a palavra-chave principal em seo_title e meta_description de forma natural.
+- seo_title deve ter até 60 caracteres.
+- meta_description deve ter entre 120 e 160 caracteres.
+- slug deve ser url-friendly (minúsculo, sem acentos, sem espaços, usando hífen).
+Estrutura obrigatória:
+{
+  "seo_title": "string",
+  "meta_description": "string",
+  "slug": "string",
+  "suggested_tags": ["string"],
+  "suggested_category": "string"
+}
+PROMPT;
+
+        $userPrompt = [
+            'title' => $title,
+            'content' => $content,
+            'main_keyword' => $mainKeyword,
+            'secondary_keywords' => $secondaryKeywords,
+            'target_audience' => $targetAudience,
+            'search_intent' => $searchIntent,
+        ];
+
+        return [
+            ['role' => 'system', 'content' => $systemPrompt],
+            ['role' => 'user', 'content' => json_encode($userPrompt, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)],
+        ];
+    }
 }

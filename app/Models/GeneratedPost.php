@@ -24,6 +24,7 @@ class GeneratedPost extends Model
         'content',
         'faq_json',
         'cta_json',
+        'metadata',
         'status',
         'seo_score',
         'readability_score',
@@ -35,6 +36,7 @@ class GeneratedPost extends Model
     protected $casts = [
         'faq_json' => 'array',
         'cta_json' => 'array',
+        'metadata' => 'array',
     ];
 
     public function contentBrief(): BelongsTo
