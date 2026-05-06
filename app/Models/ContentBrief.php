@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ContentBrief extends Model
@@ -16,6 +17,7 @@ class ContentBrief extends Model
     public const STATUS_READY_TO_GENERATE = 'ready_to_generate';
     public const STATUS_GENERATING = 'generating';
     public const STATUS_GENERATED_OUTLINE = 'generated_outline';
+    public const STATUS_GENERATED_ARTICLE = 'generated_article';
 
     protected $fillable = [
         'title',
@@ -46,6 +48,11 @@ class ContentBrief extends Model
     {
         return $this->belongsToMany(SourceDocument::class, 'content_brief_source_document')
             ->withTimestamps();
+    }
+
+    public function generatedPosts(): HasMany
+    {
+        return $this->hasMany(GeneratedPost::class);
     }
 
     protected static function booted(): void
