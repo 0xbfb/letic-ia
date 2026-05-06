@@ -27,7 +27,7 @@ O **leticia-seo-mvp** é um MVP em Laravel para transformar documentos-fonte em 
 - ✅ Implementado: upload de documentos, extração (TXT/PDF/DOCX), chunking, embeddings por chunk, busca semântica, briefings, geração de outline via LLM, painel Filament para operação.
 - 🟡 Parcialmente implementado: pipeline editorial completo após outline (artigo, metadados SEO, auditorias detalhadas, versionamento editorial completo).
 - 🟡 Parcialmente implementado: GeneratedPost, PostVersion e SeoAudit já possuem models/migrations/resources, mas o fluxo completo até WordPress ainda está incompleto.
-- 🧭 Planejado: publicação WordPress com trilha própria (`WordPressPublication`) e automações finais de envio draft.
+- ✅ Implementado: envio para WordPress como draft com trilha em `WordPressPublication`; ainda existem evoluções planejadas para governança/editorial desse fluxo.
 - 🚫 Fora do MVP: OCR, publicação final automática em WordPress (somente draft), multiempresa/SaaS, frontend React separado.
 
 ---
@@ -46,7 +46,7 @@ O **leticia-seo-mvp** é um MVP em Laravel para transformar documentos-fonte em 
 | Horizon | Observabilidade de filas (esperado) | não versionado nesta snapshot | Planejado na stack, sem configuração visível aqui. |
 | Docker Compose | Ambiente local containerizado (esperado) | `docker-compose.yml` ausente nesta snapshot | Deve existir no ambiente completo; aqui tratar como planejado. |
 | OpenAI | Provider LLM inicial | `app/Services/LLM/OpenAiClient.php`, `config/llm.php`, `.env.example` | Uso de `/v1/embeddings` e `/v1/responses`. |
-| WordPress REST API | Publicação de conteúdo como draft (planejado) | sem service/job/model ainda | Integração ainda não implementada no código atual. |
+| WordPress REST API | Publicação de conteúdo como draft | `app/Services/WordPress/*`, `app/Jobs/SendPostToWordPressJob.php`, `app/Models/WordPressPublication.php` | Implementado com autenticação por Application Password e trilha em `wordpress_publications`. |
 | Storage local | Armazenamento de originais e texto extraído | `SourceDocumentResource`, jobs de extração/chunking | Paths persistidos em banco (`file_path`, `extracted_text_path`). |
 | `smalot/pdfparser` | Extração de texto de PDF | `composer.json`, `DocumentExtractorService` | Funciona para PDF textual; sem OCR. |
 | `phpoffice/phpword` | Extração de texto de DOCX | `composer.json`, `DocumentExtractorService` | Extração por seções/elementos textuais. |
@@ -68,7 +68,7 @@ Jobs/Queues
 ↓
 PostgreSQL / Storage local / (Redis esperado)
 ↓
-OpenAI (implementado) / WordPress REST API (planejado)
+OpenAI (implementado) / WordPress REST API (implementado para draft)
 
 ### Responsabilidades por camada
 - **Painel administrativo (Filament):** entrada operacional, gatilhos manuais para jobs e visualização de resultados.
@@ -108,7 +108,8 @@ OpenAI (implementado) / WordPress REST API (planejado)
   - Exemplo atual: `LlmClientInterface`, `OpenAiClient`.
 
 - `app/Services/WordPress`
-  - Estado: 🧭 planejado (ainda ausente).
+  - Deve conter: client REST, publisher e tratamento de exceções de integração.
+  - Exemplo atual: `WordPressClient`, `WordPressPostPublisher`, `WordPressException`.
 
 - `app/Jobs`
   - Deve conter: orquestração assíncrona e status.
@@ -207,7 +208,7 @@ OpenAI (implementado) / WordPress REST API (planejado)
 
 ### 5.8 WordPressPublication
 - **Responsabilidade:** histórico de envio WordPress.
-- **Estado:** 🧭 planejado (modelo/tabela ausentes).
+- **Estado:** ✅ implementado (model, migration, job e resource de visualização).
 
 ---
 
@@ -418,13 +419,13 @@ Cuidados:
 ## 12. Integração WordPress
 
 ### Estado atual
-🧭 Planejado. Não há implementação no repositório para envio REST neste momento.
+✅ Implementado no código atual com `WordPressClient`, `WordPressPostPublisher` e `SendPostToWordPressJob`, condicionado a post aprovado.
 
 ### Contrato esperado (MVP)
 - Endpoint REST típico: `/wp-json/wp/v2/posts`.
 - Autenticação esperada: Application Password.
 - Status de publicação: sempre `draft`.
-- Persistência de trilha: `wordpress_publications` (planejado).
+- Persistência de trilha: `wordpress_publications` (implementado).
 
 ### Exemplo de payload esperado
 ```json
@@ -649,7 +650,6 @@ Ciclo sugerido de revisão:
 - Completar estratégia de testes automatizados.
 
 ### Médio prazo
-- Implementar integração WordPress (`draft`) com `WordPressPublication`.
 - Evoluir observabilidade de filas (Horizon + métricas de erro).
 - Consolidação de políticas de retry e idempotência.
 
@@ -680,4 +680,4 @@ Ciclo sugerido de revisão:
 1. `README.md` não está presente nesta snapshot local; portanto não foi possível adicionar link para este guia nesta tarefa.
 2. `docker-compose.yml` não está presente nesta snapshot local (somente referência de stack esperada).
 3. `config/database.php`, `config/queue.php` e `config/filesystems.php` não estão presentes nesta snapshot local.
-4. O repositório já implementa partes editoriais além do básico: `GeneratedPost`, `PostVersion` e `SeoAudit` (models, migrations, services e resource), mas a integração WordPress ainda não está implementada.
+4. O repositório já implementa partes editoriais além do básico: `GeneratedPost`, `PostVersion`, `SeoAudit` e também integração WordPress draft com `WordPressPublication` (model, migration, services, job e resource).
