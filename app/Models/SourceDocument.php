@@ -51,6 +51,33 @@ class SourceDocument extends Model
         return $this->hasMany(DocumentChunk::class)->orderBy('chunk_index');
     }
 
+
+    /** @return array<string, string> */
+    public static function statusOptions(): array
+    {
+        return [
+            self::STATUS_UPLOADED => 'Enviado',
+            self::STATUS_EXTRACTING => 'Extraindo texto',
+            self::STATUS_EXTRACTED => 'Texto extraído',
+            self::STATUS_CHUNKING => 'Gerando chunks',
+            self::STATUS_CHUNKED => 'Chunks gerados',
+            self::STATUS_EMBEDDING => 'Gerando embeddings',
+            self::STATUS_EMBEDDED => 'Pronto para uso',
+            self::STATUS_FAILED => 'Falhou',
+        ];
+    }
+
+    /** @return array<string, string> */
+    public static function statusColors(): array
+    {
+        return [
+            'gray' => self::STATUS_UPLOADED,
+            'warning' => [self::STATUS_EXTRACTING, self::STATUS_CHUNKING, self::STATUS_EMBEDDING],
+            'info' => [self::STATUS_EXTRACTED, self::STATUS_CHUNKED],
+            'success' => self::STATUS_EMBEDDED,
+            'danger' => self::STATUS_FAILED,
+        ];
+    }
     protected static function booted(): void
     {
         static::creating(function (SourceDocument $document): void {

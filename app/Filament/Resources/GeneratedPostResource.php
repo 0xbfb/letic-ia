@@ -36,7 +36,7 @@ class GeneratedPostResource extends Resource
                     Forms\Components\TextInput::make('slug')->required()->maxLength(255),
                     Forms\Components\Select::make('status')
                         ->required()
-                        ->options(GeneratedPost::reviewStatusOptions()),
+                        ->label('Status de revisão')->options(GeneratedPost::reviewStatusOptions()),
                     Forms\Components\Textarea::make('excerpt')->label('Resumo')->rows(4)->columnSpanFull(),
                 ])->columns(3),
 
@@ -175,13 +175,8 @@ class GeneratedPostResource extends Resource
             Tables\Columns\TextColumn::make('contentBrief.title')->label('Briefing')->toggleable(),
             Tables\Columns\TextColumn::make('status')
                 ->badge()
-                ->colors([
-                    'info' => GeneratedPost::STATUS_GENERATED,
-                    'gray' => GeneratedPost::STATUS_NEEDS_REVIEW,
-                    'warning' => GeneratedPost::STATUS_CHANGES_REQUESTED,
-                    'success' => GeneratedPost::STATUS_APPROVED,
-                    'danger' => GeneratedPost::STATUS_FAILED,
-                ])
+                ->formatStateUsing(fn (string $state): string => GeneratedPost::reviewStatusOptions()[$state] ?? $state)
+                ->colors(GeneratedPost::reviewStatusColors())
                 ->sortable(),
             Tables\Columns\TextColumn::make('seo_score')->label('SEO Score')->sortable(),
             Tables\Columns\TextColumn::make('tone_score')->label('Tone')->sortable(),
@@ -307,7 +302,7 @@ class GeneratedPostResource extends Resource
                 ) {
                     Notification::make()
                         ->title('Aprovação bloqueada.')
-                        ->body('Preencha conteúdo, título, slug, meta description e revise erros críticos de SEO antes de aprovar.')
+                        ->body('Preencha conteúdo, título, slug, meta description e revise erros críticos de SEO antes de aprovar. Rode a checklist SEO para validar.')
                         ->danger()
                         ->send();
 
@@ -332,6 +327,7 @@ class GeneratedPostResource extends Resource
         return Action::make('request_adjustments')
             ->label('Solicitar ajustes')
             ->icon('heroicon-o-pencil-square')
+            ->requiresConfirmation()
             ->color('warning')
             ->form([
                 Forms\Components\Textarea::make('adjustments_note')

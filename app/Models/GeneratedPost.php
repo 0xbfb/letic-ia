@@ -79,11 +79,23 @@ class GeneratedPost extends Model
     public static function reviewStatusOptions(): array
     {
         return [
-            self::STATUS_GENERATED => self::STATUS_GENERATED,
-            self::STATUS_NEEDS_REVIEW => self::STATUS_NEEDS_REVIEW,
-            self::STATUS_CHANGES_REQUESTED => self::STATUS_CHANGES_REQUESTED,
-            self::STATUS_APPROVED => self::STATUS_APPROVED,
-            self::STATUS_FAILED => self::STATUS_FAILED,
+            self::STATUS_GENERATED => 'Gerado',
+            self::STATUS_NEEDS_REVIEW => 'Precisa de revisão',
+            self::STATUS_CHANGES_REQUESTED => 'Ajustes solicitados',
+            self::STATUS_APPROVED => 'Aprovado',
+            self::STATUS_FAILED => 'Falhou',
+        ];
+    }
+
+    /** @return array<string, string> */
+    public static function reviewStatusColors(): array
+    {
+        return [
+            'info' => self::STATUS_GENERATED,
+            'gray' => self::STATUS_NEEDS_REVIEW,
+            'warning' => self::STATUS_CHANGES_REQUESTED,
+            'success' => self::STATUS_APPROVED,
+            'danger' => self::STATUS_FAILED,
         ];
     }
 }

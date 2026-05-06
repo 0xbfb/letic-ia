@@ -55,6 +55,29 @@ class ContentBrief extends Model
         return $this->hasMany(GeneratedPost::class);
     }
 
+
+    /** @return array<string, string> */
+    public static function statusOptions(): array
+    {
+        return [
+            self::STATUS_DRAFT => 'Rascunho',
+            self::STATUS_READY_TO_GENERATE => 'Pronto para gerar',
+            self::STATUS_GENERATING => 'Gerando',
+            self::STATUS_GENERATED_OUTLINE => 'Outline gerado',
+            self::STATUS_GENERATED_ARTICLE => 'Artigo gerado',
+        ];
+    }
+
+    /** @return array<string, string|array<int,string>> */
+    public static function statusColors(): array
+    {
+        return [
+            'gray' => self::STATUS_DRAFT,
+            'warning' => self::STATUS_READY_TO_GENERATE,
+            'info' => [self::STATUS_GENERATING, self::STATUS_GENERATED_OUTLINE],
+            'success' => self::STATUS_GENERATED_ARTICLE,
+        ];
+    }
     protected static function booted(): void
     {
         static::creating(function (ContentBrief $contentBrief): void {
