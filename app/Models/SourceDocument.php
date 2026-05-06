@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -37,6 +38,13 @@ class SourceDocument extends Model
         'metadata' => 'array',
     ];
 
+
+
+    public function contentBriefs(): BelongsToMany
+    {
+        return $this->belongsToMany(ContentBrief::class, 'content_brief_source_document')
+            ->withTimestamps();
+    }
 
     public function chunks(): HasMany
     {

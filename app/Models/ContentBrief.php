@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ContentBrief extends Model
@@ -27,6 +28,7 @@ class ContentBrief extends Model
         'minimum_words',
         'maximum_words',
         'mandatory_sources',
+        'metadata',
         'notes',
         'status',
         'created_by',
@@ -35,7 +37,14 @@ class ContentBrief extends Model
     protected $casts = [
         'secondary_keywords' => 'array',
         'mandatory_sources' => 'array',
+        'metadata' => 'array',
     ];
+
+    public function sourceDocuments(): BelongsToMany
+    {
+        return $this->belongsToMany(SourceDocument::class, 'content_brief_source_document')
+            ->withTimestamps();
+    }
 
     protected static function booted(): void
     {
