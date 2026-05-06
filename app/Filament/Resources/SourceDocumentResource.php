@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\SourceDocumentResource\Pages;
 use App\Jobs\ChunkDocumentJob;
 use App\Jobs\ExtractDocumentTextJob;
+use App\Jobs\GenerateDocumentEmbeddingsJob;
 use App\Models\SourceDocument;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -68,6 +69,8 @@ class SourceDocumentResource extends Resource
                     'extracted' => 'extracted',
                     'chunking' => 'chunking',
                     'chunked' => 'chunked',
+                    'embedding' => 'embedding',
+                    'embedded' => 'embedded',
                     'failed' => 'failed',
                 ]),
                 Tables\Filters\SelectFilter::make('file_type')->options(['txt' => 'txt', 'pdf' => 'pdf', 'docx' => 'docx']),
@@ -93,6 +96,17 @@ class SourceDocumentResource extends Resource
 
                         Notification::make()->title('Geração de chunks iniciada')->success()->send();
                     }),
+
+                Action::make('generateEmbeddings')
+                    ->label('Gerar embeddings')
+                    ->icon('heroicon-o-cpu-chip')
+                    ->visible(fn (SourceDocument $record): bool => $record->chunks()->count() > 0 && in_array($record->status, [SourceDocument::STATUS_CHUNKED, SourceDocument::STATUS_FAILED], true))
+                    ->action(function (SourceDocument $record): void {
+                        GenerateDocumentEmbeddingsJob::dispatch($record->id);
+
+                        Notification::make()->title('Geração de embeddings iniciada')->success()->send();
+                    }),
+
                 Action::make('viewChunks')
                     ->label('Ver chunks')
                     ->icon('heroicon-o-list-bullet')

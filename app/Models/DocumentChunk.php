@@ -20,7 +20,6 @@ class DocumentChunk extends Model
     ];
 
     protected $casts = [
-        'embedding' => 'array',
         'metadata' => 'array',
     ];
 

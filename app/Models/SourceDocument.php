@@ -17,7 +17,8 @@ class SourceDocument extends Model
     public const STATUS_EXTRACTED = 'extracted';
     public const STATUS_CHUNKING = 'chunking';
     public const STATUS_CHUNKED = 'chunked';
-    public const STATUS_EMBEDDED_PENDING = 'embedded_pending';
+    public const STATUS_EMBEDDING = 'embedding';
+    public const STATUS_EMBEDDED = 'embedded';
     public const STATUS_FAILED = 'failed';
 
     protected $fillable = [
