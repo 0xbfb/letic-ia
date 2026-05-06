@@ -4,8 +4,10 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\GeneratedPostResource\Pages;
 use App\Models\GeneratedPost;
+use App\Services\Content\MetadataGeneratorService;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -39,6 +41,19 @@ class GeneratedPostResource extends Resource
         ])->actions([
             Tables\Actions\ViewAction::make(),
             Tables\Actions\EditAction::make(),
+            Tables\Actions\Action::make('generate_seo_metadata')
+                ->label('Gerar metadados SEO')
+                ->icon('heroicon-o-sparkles')
+                ->requiresConfirmation()
+                ->action(function (GeneratedPost $record, MetadataGeneratorService $metadataGeneratorService): void {
+                    $success = $metadataGeneratorService->generateForPost($record);
+
+                    Notification::make()
+                        ->title($success ? 'Metadados SEO gerados.' : 'Falha ao gerar metadados SEO.')
+                        ->success($success)
+                        ->danger(! $success)
+                        ->send();
+                }),
         ]);
     }
 
