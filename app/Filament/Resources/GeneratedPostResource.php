@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\GeneratedPostResource\Pages;
+use App\Filament\Resources\GeneratedPostResource\RelationManagers\PostVersionsRelationManager;
 use App\Models\GeneratedPost;
 use App\Services\Content\MetadataGeneratorService;
 use Filament\Forms;
@@ -28,6 +29,11 @@ class GeneratedPostResource extends Resource
             Forms\Components\KeyValue::make('faq_json')->label('FAQ JSON')->columnSpanFull(),
             Forms\Components\KeyValue::make('cta_json')->label('CTA JSON')->columnSpanFull(),
             Forms\Components\TextInput::make('status')->required()->maxLength(32),
+            Forms\Components\Textarea::make('change_summary')
+                ->label('Resumo da alteração para histórico')
+                ->rows(3)
+                ->dehydrated(true)
+                ->columnSpanFull(),
         ]);
     }
 
@@ -55,6 +61,13 @@ class GeneratedPostResource extends Resource
                         ->send();
                 }),
         ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            PostVersionsRelationManager::class,
+        ];
     }
 
     public static function getPages(): array

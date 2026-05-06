@@ -17,6 +17,7 @@ class ArticleGeneratorService
         private readonly BriefingBuilderService $briefingBuilderService,
         private readonly LlmPromptService $llmPromptService,
         private readonly OpenAiClient $llmClient,
+        private readonly PostVersionService $postVersionService,
     ) {
     }
 
@@ -51,6 +52,7 @@ class ArticleGeneratorService
                 'created_by' => $brief->created_by,
             ]);
 
+            $this->postVersionService->createInitialVersion($post);
             $this->storeRun($brief, $response, $prompt, 'success', null, $startedAt);
 
             return $post;

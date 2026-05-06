@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class GeneratedPost extends Model
@@ -42,5 +43,10 @@ class GeneratedPost extends Model
     public function contentBrief(): BelongsTo
     {
         return $this->belongsTo(ContentBrief::class);
+    }
+
+    public function postVersions(): HasMany
+    {
+        return $this->hasMany(PostVersion::class)->orderByDesc('version_number');
     }
 }
