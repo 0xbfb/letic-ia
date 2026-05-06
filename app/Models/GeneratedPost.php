@@ -58,6 +58,11 @@ class GeneratedPost extends Model
 
     public function latestSeoAudit(): HasOne
     {
-        return $this->hasOne(SeoAudit::class)->latestOfMany();
+        return $this->hasOne(SeoAudit::class)->where('audit_type', 'seo_checklist')->latestOfMany();
+    }
+
+    public function latestEditorialAudit(): HasOne
+    {
+        return $this->hasOne(SeoAudit::class)->where('audit_type', 'editorial')->latestOfMany();
     }
 }

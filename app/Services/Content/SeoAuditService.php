@@ -72,6 +72,7 @@ class SeoAuditService
 
         $audit = SeoAudit::create([
             'generated_post_id' => $post->id,
+            'audit_type' => 'seo_checklist',
             'score' => $score,
             'checks_json' => $checks,
             'warnings_json' => $warnings,

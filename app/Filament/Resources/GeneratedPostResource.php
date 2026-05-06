@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\GeneratedPostResource\Pages;
 use App\Filament\Resources\GeneratedPostResource\RelationManagers\PostVersionsRelationManager;
 use App\Models\GeneratedPost;
+use App\Services\Content\EditorialAuditService;
 use App\Services\Content\MetadataGeneratorService;
 use App\Services\Content\SeoAuditService;
 use Filament\Forms;
@@ -31,10 +32,33 @@ class GeneratedPostResource extends Resource
             Forms\Components\KeyValue::make('cta_json')->label('CTA JSON')->columnSpanFull(),
             Forms\Components\TextInput::make('status')->required()->maxLength(32),
             Forms\Components\TextInput::make('seo_score')->label('SEO Score')->numeric()->readOnly(),
+            Forms\Components\TextInput::make('tone_score')->label('Tone Score')->numeric()->readOnly(),
+            Forms\Components\TextInput::make('readability_score')->label('Readability Score')->numeric()->readOnly(),
             Forms\Components\Textarea::make('latestSeoAudit.checks_json')
                 ->label('SEO Checks (última auditoria)')
                 ->formatStateUsing(fn ($state): string => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) ?: '[]')
                 ->rows(10)
+                ->readOnly()
+                ->dehydrated(false)
+                ->columnSpanFull(),
+            Forms\Components\Textarea::make('latestEditorialAudit.checks_json')
+                ->label('Auditoria editorial: checks (última execução)')
+                ->formatStateUsing(fn ($state): string => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) ?: '[]')
+                ->rows(10)
+                ->readOnly()
+                ->dehydrated(false)
+                ->columnSpanFull(),
+            Forms\Components\Textarea::make('latestEditorialAudit.errors_json')
+                ->label('Auditoria editorial: problemas (última execução)')
+                ->formatStateUsing(fn ($state): string => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) ?: '[]')
+                ->rows(6)
+                ->readOnly()
+                ->dehydrated(false)
+                ->columnSpanFull(),
+            Forms\Components\Textarea::make('latestEditorialAudit.warnings_json')
+                ->label('Auditoria editorial: sugestões (última execução)')
+                ->formatStateUsing(fn ($state): string => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) ?: '[]')
+                ->rows(6)
                 ->readOnly()
                 ->dehydrated(false)
                 ->columnSpanFull(),
@@ -67,6 +91,8 @@ class GeneratedPostResource extends Resource
             Tables\Columns\TextColumn::make('contentBrief.title')->label('Briefing')->toggleable(),
             Tables\Columns\TextColumn::make('status')->badge()->sortable(),
             Tables\Columns\TextColumn::make('seo_score')->label('SEO Score')->sortable(),
+            Tables\Columns\TextColumn::make('tone_score')->label('Tone')->sortable(),
+            Tables\Columns\TextColumn::make('readability_score')->label('Readability')->sortable(),
             Tables\Columns\TextColumn::make('updated_at')->dateTime('d/m/Y H:i')->sortable(),
         ])->actions([
             Tables\Actions\ViewAction::make(),
@@ -94,6 +120,29 @@ class GeneratedPostResource extends Resource
                     Notification::make()
                         ->title('Checklist SEO executado com sucesso.')
                         ->body('Score calculado: '.$audit->score)
+                        ->success()
+                        ->send();
+                }),
+            Tables\Actions\Action::make('run_editorial_audit')
+                ->label('Rodar auditoria editorial')
+                ->icon('heroicon-o-chat-bubble-left-ellipsis')
+                ->requiresConfirmation()
+                ->action(function (GeneratedPost $record, EditorialAuditService $editorialAuditService): void {
+                    $audit = $editorialAuditService->runForPost($record);
+
+                    if ($audit === null) {
+                        Notification::make()
+                            ->title('Falha na auditoria editorial.')
+                            ->body('A resposta do LLM foi inválida ou houve erro de execução. Verifique llm_runs.')
+                            ->danger()
+                            ->send();
+
+                        return;
+                    }
+
+                    Notification::make()
+                        ->title('Auditoria editorial executada com sucesso.')
+                        ->body('Score editorial: '.$audit->score)
                         ->success()
                         ->send();
                 }),

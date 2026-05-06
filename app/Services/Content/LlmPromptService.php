@@ -148,4 +148,61 @@ PROMPT;
             ['role' => 'user', 'content' => json_encode($userPrompt, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)],
         ];
     }
+
+    /**
+     * @param  array<string, string>  $briefing
+     * @param  array<string, string>  $seoMetadata
+     */
+    public function buildEditorialAuditPrompt(
+        array $briefing,
+        string $mainKeyword,
+        string $targetAudience,
+        string $expectedTone,
+        string $content,
+        array $seoMetadata,
+    ): array {
+        $systemPrompt = <<<'PROMPT'
+Você é um auditor editorial SEO.
+Responda SOMENTE em JSON válido (sem markdown).
+Não reescreva o artigo e não gere versão nova do texto.
+Avalie tom, clareza e qualidade editorial com foco em público leigo.
+
+Estrutura obrigatória:
+{
+  "score": 0,
+  "checks": {
+    "tone_matches_expected": {"ok": true, "score": 0, "reason": "string"},
+    "text_is_clear_for_non_experts": {"ok": true, "score": 0, "reason": "string"},
+    "text_is_not_too_generic": {"ok": true, "score": 0, "reason": "string"},
+    "cta_is_natural": {"ok": true, "score": 0, "reason": "string"},
+    "respects_briefing": {"ok": true, "score": 0, "reason": "string"},
+    "has_no_exaggerated_promises": {"ok": true, "score": 0, "reason": "string"},
+    "has_no_excessive_bureaucratic_language": {"ok": true, "score": 0, "reason": "string"},
+    "has_thematic_sensitivity": {"ok": true, "score": 0, "reason": "string"}
+  },
+  "problems": ["string"],
+  "suggestions": ["string"]
+}
+
+Regras obrigatórias:
+- score geral entre 0 e 100.
+- Cada check deve ter score entre 0 e 100.
+- Em problems liste riscos editoriais reais e objetivos.
+- Em suggestions liste melhorias concretas sem reescrever o artigo completo.
+PROMPT;
+
+        $userPrompt = [
+            'briefing' => $briefing,
+            'main_keyword' => $mainKeyword,
+            'target_audience' => $targetAudience,
+            'expected_tone' => $expectedTone,
+            'post_content' => $content,
+            'seo_metadata' => $seoMetadata,
+        ];
+
+        return [
+            ['role' => 'system', 'content' => $systemPrompt],
+            ['role' => 'user', 'content' => json_encode($userPrompt, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)],
+        ];
+    }
 }
