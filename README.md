@@ -70,6 +70,9 @@ MVP em Laravel para geração de conteúdo SEO com apoio de LLM, com revisão hu
 - **Falha no WordPress**: valide URL, credenciais de aplicação e permissões do usuário.
 - **Erro de OpenAI/LLM**: confira `OPENAI_API_KEY`, modelo e logs em `llm_runs`.
 
+## Documentação técnica
+- [Guia técnico da arquitetura](docs/TECHNICAL_GUIDE.md)
+
 ## Documentação complementar
 - Checklist de release do MVP inicial: `docs/MVP_RELEASE_CHECKLIST.md`
 - Veja `docs/` para detalhes funcionais por feature e guias técnicos.
