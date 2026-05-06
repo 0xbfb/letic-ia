@@ -9,6 +9,8 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class GeneratePostArticleJob implements ShouldQueue
 {
@@ -24,12 +26,42 @@ class GeneratePostArticleJob implements ShouldQueue
 
     public function handle(ArticleGeneratorService $articleGeneratorService): void
     {
+        $startedAt = microtime(true);
         $brief = ContentBrief::query()->find($this->briefId);
 
-        if (! $brief || ! is_array(data_get($brief->metadata, 'outline'))) {
+        if (! $brief) {
+            Log::warning('Briefing não encontrado para geração de artigo.', [
+                'brief_id' => $this->briefId,
+                'operation' => 'generate_article',
+            ]);
             return;
         }
 
-        $articleGeneratorService->generate($brief);
+        if (! is_array(data_get($brief->metadata, 'outline'))) {
+            Log::warning('Outline ausente para geração de artigo.', [
+                'brief_id' => $brief->id,
+                'operation' => 'generate_article',
+            ]);
+            return;
+        }
+
+        try {
+            $articleGeneratorService->generate($brief);
+            Log::info('Job de geração de artigo finalizado.', [
+                'brief_id' => $brief->id,
+                'post_id' => null,
+                'operation' => 'generate_article',
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            ]);
+        } catch (Throwable $exception) {
+            Log::error('Falha no job de geração de artigo.', [
+                'brief_id' => $brief->id,
+                'operation' => 'generate_article',
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'error_message' => $exception->getMessage(),
+            ]);
+
+            throw $exception;
+        }
     }
 }

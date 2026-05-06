@@ -28,15 +28,22 @@ class SendPostToWordPressJob implements ShouldQueue
 
     public function handle(WordPressPostPublisher $publisher): void
     {
+        $startedAt = microtime(true);
         $post = GeneratedPost::query()->findOrFail($this->generatedPostId);
 
         try {
             $publisher->publishDraft($post, $this->publishedBy);
+            Log::info('Job de envio para WordPress finalizado.', [
+                'post_id' => $this->generatedPostId,
+                'operation' => 'send_post_to_wordpress',
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+            ]);
         } catch (\Throwable $exception) {
             Log::error('Falha ao enviar post para WordPress.', [
                 'post_id' => $this->generatedPostId,
                 'operation' => 'send_post_to_wordpress',
-                'error' => $exception->getMessage(),
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
+                'error_message' => $exception->getMessage(),
             ]);
 
             throw $exception;
