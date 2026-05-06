@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class GeneratedPost extends Model
@@ -48,5 +49,15 @@ class GeneratedPost extends Model
     public function postVersions(): HasMany
     {
         return $this->hasMany(PostVersion::class)->orderByDesc('version_number');
+    }
+
+    public function seoAudits(): HasMany
+    {
+        return $this->hasMany(SeoAudit::class)->latest();
+    }
+
+    public function latestSeoAudit(): HasOne
+    {
+        return $this->hasOne(SeoAudit::class)->latestOfMany();
     }
 }

@@ -6,6 +6,7 @@ use App\Filament\Resources\GeneratedPostResource\Pages;
 use App\Filament\Resources\GeneratedPostResource\RelationManagers\PostVersionsRelationManager;
 use App\Models\GeneratedPost;
 use App\Services\Content\MetadataGeneratorService;
+use App\Services\Content\SeoAuditService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
@@ -29,6 +30,28 @@ class GeneratedPostResource extends Resource
             Forms\Components\KeyValue::make('faq_json')->label('FAQ JSON')->columnSpanFull(),
             Forms\Components\KeyValue::make('cta_json')->label('CTA JSON')->columnSpanFull(),
             Forms\Components\TextInput::make('status')->required()->maxLength(32),
+            Forms\Components\TextInput::make('seo_score')->label('SEO Score')->numeric()->readOnly(),
+            Forms\Components\Textarea::make('latestSeoAudit.checks_json')
+                ->label('SEO Checks (última auditoria)')
+                ->formatStateUsing(fn ($state): string => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) ?: '[]')
+                ->rows(10)
+                ->readOnly()
+                ->dehydrated(false)
+                ->columnSpanFull(),
+            Forms\Components\Textarea::make('latestSeoAudit.warnings_json')
+                ->label('SEO Warnings (última auditoria)')
+                ->formatStateUsing(fn ($state): string => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) ?: '[]')
+                ->rows(6)
+                ->readOnly()
+                ->dehydrated(false)
+                ->columnSpanFull(),
+            Forms\Components\Textarea::make('latestSeoAudit.errors_json')
+                ->label('SEO Errors (última auditoria)')
+                ->formatStateUsing(fn ($state): string => json_encode($state ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) ?: '[]')
+                ->rows(6)
+                ->readOnly()
+                ->dehydrated(false)
+                ->columnSpanFull(),
             Forms\Components\Textarea::make('change_summary')
                 ->label('Resumo da alteração para histórico')
                 ->rows(3)
@@ -43,6 +66,7 @@ class GeneratedPostResource extends Resource
             Tables\Columns\TextColumn::make('title')->searchable()->sortable(),
             Tables\Columns\TextColumn::make('contentBrief.title')->label('Briefing')->toggleable(),
             Tables\Columns\TextColumn::make('status')->badge()->sortable(),
+            Tables\Columns\TextColumn::make('seo_score')->label('SEO Score')->sortable(),
             Tables\Columns\TextColumn::make('updated_at')->dateTime('d/m/Y H:i')->sortable(),
         ])->actions([
             Tables\Actions\ViewAction::make(),
@@ -58,6 +82,19 @@ class GeneratedPostResource extends Resource
                         ->title($success ? 'Metadados SEO gerados.' : 'Falha ao gerar metadados SEO.')
                         ->success($success)
                         ->danger(! $success)
+                        ->send();
+                }),
+            Tables\Actions\Action::make('run_seo_checklist')
+                ->label('Rodar checklist SEO')
+                ->icon('heroicon-o-check-badge')
+                ->requiresConfirmation()
+                ->action(function (GeneratedPost $record, SeoAuditService $seoAuditService): void {
+                    $audit = $seoAuditService->runForPost($record);
+
+                    Notification::make()
+                        ->title('Checklist SEO executado com sucesso.')
+                        ->body('Score calculado: '.$audit->score)
+                        ->success()
                         ->send();
                 }),
         ]);
