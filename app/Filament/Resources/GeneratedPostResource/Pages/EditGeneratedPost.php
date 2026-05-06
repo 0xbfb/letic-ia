@@ -19,6 +19,7 @@ class EditGeneratedPost extends EditRecord
             GeneratedPostResource::makeGenerateMetadataAction(),
             GeneratedPostResource::makeApproveAction(),
             GeneratedPostResource::makeRequestAdjustmentsAction(),
+            GeneratedPostResource::makeBackToReviewAction(),
             Actions\DeleteAction::make(),
         ];
     }
