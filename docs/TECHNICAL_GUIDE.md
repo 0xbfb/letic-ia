@@ -1,307 +1,420 @@
 # Guia Técnico da Arquitetura — leticia-seo-mvp
 
-## Status deste documento
-
-Este guia descreve o **estado atual real do repositório** e separa explicitamente:
-
-- **Implementado**
-- **Parcialmente implementado**
-- **Planejado**
-- **Fora do MVP**
+> Última atualização: 2026-05-06.
+>
+> Este documento reflete **o estado atual do repositório** e separa claramente:
+> - ✅ **Implementado**
+> - 🟡 **Parcialmente implementado**
+> - 🧭 **Planejado**
+> - 🚫 **Fora do MVP**
 
 ---
 
-## 1) Visão geral
+## 1. Visão geral
 
 ### Objetivo do projeto
-O projeto é um MVP em Laravel para transformar documentos-base em insumos de conteúdo SEO com apoio de LLM e, ao final, enviar posts para WordPress como rascunho.
+O **leticia-seo-mvp** é um MVP em Laravel para transformar documentos-fonte em insumos de conteúdo SEO com rastreabilidade operacional e revisão humana obrigatória antes do envio ao WordPress.
 
 ### Problema que o MVP resolve
-Centralizar ingestão de documentos de referência e preparar base para geração assistida de conteúdo, começando por upload, extração e chunking.
+- Centraliza ingestão e preparação de conteúdo de referência.
+- Reduz trabalho manual de estruturação de contexto para geração editorial.
+- Mantém trilha auditável para etapas automatizadas (extração, embeddings, buscas e chamadas LLM).
 
-### Fluxo funcional principal (visão alvo)
+### Fluxo funcional principal (alvo)
 **Documento → Extração → Chunks → Embeddings → Busca → Briefing → Outline → Artigo → Revisão → WordPress draft**
 
 ### Estado atual do fluxo
-- **Implementado:** upload de documentos, extração de texto (TXT/PDF/DOCX), chunking, painel Filament para operação manual.
-- **Parcialmente implementado:** preparação para embeddings (campo existe em `document_chunks.embedding`, mas geração ainda não existe).
-- **Planejado:** busca semântica, briefing, geração de outline/artigo/metadados, auditoria SEO/editorial, publicação WordPress.
-- **Fora do MVP atual do repositório:** OCR, publicação final automática em WordPress.
+- ✅ Implementado: upload de documentos, extração (TXT/PDF/DOCX), chunking, embeddings por chunk, busca semântica, briefings, geração de outline via LLM, painel Filament para operação.
+- 🟡 Parcialmente implementado: pipeline editorial completo após outline (artigo, metadados SEO, auditorias detalhadas, versionamento editorial completo).
+- 🧭 Planejado: GeneratedPost, PostVersion, SeoAudit, publicação WordPress com trilha própria.
+- 🚫 Fora do MVP: OCR, publicação final automática em WordPress (somente draft), multiempresa/SaaS, frontend React separado.
 
 ---
 
-## 2) Stack técnica
+## 2. Stack técnica
 
 | Tecnologia | Uso | Arquivos principais | Observações |
 |---|---|---|---|
-| PHP 8.2 | Runtime da aplicação | `composer.json` | Requisito mínimo definido. |
-| Laravel (esperado) | Framework principal | Estrutura `app/`, `database/`, `config/` | O repositório está em formato Laravel modular parcial (sem todos os arquivos base versionados). |
-| Filament | Painel administrativo para SourceDocument | `app/Filament/Resources/SourceDocumentResource.php` | Resource operacional já disponível para upload/extração/chunking. |
-| PostgreSQL (planejado/compatível) | Banco principal | migrations usam `jsonb` | `jsonb` indica foco em PostgreSQL. |
-| pgvector (planejado) | Vetores de embeddings | `document_chunks.embedding` (jsonb por enquanto) | Ainda sem coluna `vector` nativa e sem busca vetorial implementada. |
-| Redis (planejado) | Backend de fila/cache | (não encontrado em `config/queue.php` neste recorte) | Necessário para Horizon em ambiente completo. |
-| Queue do Laravel | Processamento assíncrono | `app/Jobs/*` | Jobs de extração e chunking implementados. |
-| Horizon (planejado) | Observabilidade de filas | (não encontrado neste recorte) | Não há configuração/versionamento visível nesta snapshot. |
-| Docker Compose (planejado) | Ambiente local containerizado | `docker-compose.yml` ausente neste recorte | Documentar como planejado no estado atual. |
-| OpenAI/LLM provider (planejado) | Geração e embeddings | (não encontrado no código atual) | Sem client/integração nesta versão. |
-| WordPress REST API (planejado) | Envio de rascunhos | (não encontrado no código atual) | Sem integração implementada ainda. |
-| Storage local | Persistência de arquivos e texto extraído | `SourceDocumentResource`, Jobs | Uso do disco `local` e paths relativos em banco. |
-| `smalot/pdfparser` | Extração PDF | `composer.json`, `DocumentExtractorService` | Só funciona bem com PDF textual. |
-| `phpoffice/phpword` | Extração DOCX | `composer.json`, `DocumentExtractorService` | Leitura de seções/elementos com `getText`. |
-
-Cuidados de manutenção:
-- Tratar PDFs escaneados sem OCR como erro esperado (atual comportamento).
-- Manter consistência de status nos jobs.
-- Evitar guardar credenciais/sigilos em `metadata` ou logs.
+| PHP 8.2 | Runtime da aplicação | `composer.json` | Versão mínima definida no projeto. |
+| Laravel (estrutura parcial versionada) | Base de models, jobs, services e migrations | `app/*`, `database/migrations/*` | Nem todos os arquivos-padrão do Laravel estão versionados nesta snapshot (ex.: alguns `config/*.php`). |
+| Filament | Painel administrativo de operação do pipeline | `app/Filament/Resources/*` | Resources para `SourceDocument` e `ContentBrief` com actions de pipeline. |
+| PostgreSQL | Banco relacional principal | migrations em `database/migrations/*` | Uso consistente de `jsonb` e sintaxe SQL compatível com Postgres. |
+| pgvector | Similaridade vetorial para embeddings | migration `2026_05_06_000001_*` e `DocumentSearchService` | `document_chunks.embedding` é convertido para `vector(dim)` via migration. |
+| Redis | Backend esperado para filas/cache | (esperado via stack; `config/queue.php` ausente nesta snapshot) | Tratar como dependência de ambiente, especialmente com Horizon. |
+| Laravel Queue | Execução assíncrona | `app/Jobs/*` | Filas `embeddings` e `generation` já definidas em jobs; outras ficam no default. |
+| Horizon | Observabilidade de filas (esperado) | não versionado nesta snapshot | Planejado na stack, sem configuração visível aqui. |
+| Docker Compose | Ambiente local containerizado (esperado) | `docker-compose.yml` ausente nesta snapshot | Deve existir no ambiente completo; aqui tratar como planejado. |
+| OpenAI | Provider LLM inicial | `app/Services/LLM/OpenAiClient.php`, `config/llm.php`, `.env.example` | Uso de `/v1/embeddings` e `/v1/responses`. |
+| WordPress REST API | Publicação de conteúdo como draft (planejado) | sem service/job/model ainda | Integração ainda não implementada no código atual. |
+| Storage local | Armazenamento de originais e texto extraído | `SourceDocumentResource`, jobs de extração/chunking | Paths persistidos em banco (`file_path`, `extracted_text_path`). |
+| `smalot/pdfparser` | Extração de texto de PDF | `composer.json`, `DocumentExtractorService` | Funciona para PDF textual; sem OCR. |
+| `phpoffice/phpword` | Extração de texto de DOCX | `composer.json`, `DocumentExtractorService` | Extração por seções/elementos textuais. |
 
 ---
 
-## 3) Arquitetura geral
+## 3. Arquitetura geral
 
-### Diagrama lógico (estado atual + alvo)
+### Diagrama em texto
+Usuário (editor/operação)
+↓
+Filament (Resources e Actions)
+↓
+Laravel Application Layer
+↓
+Services de Domínio
+↓
+Jobs/Queues
+↓
+PostgreSQL / Storage local / (Redis esperado)
+↓
+OpenAI (implementado) / WordPress REST API (planejado)
 
-Usuário (admin)  
-↓  
-Filament Resource (SourceDocument)  
-↓  
-Services de domínio (extração/chunking)  
-↓  
-Jobs/Queue (ExtractDocumentTextJob, ChunkDocumentJob)  
-↓  
-PostgreSQL (metadados/chunks) + Storage local (arquivos/texto)  
-↓  
-[Planejado] LLM Provider / WordPress REST API
-
-### Camadas e responsabilidades
-- **Painel administrativo (Filament):** CRUD e ações manuais (extrair texto, gerar chunks, visualizar resultado).
-- **Aplicação Laravel:** orquestra regras via jobs e services.
-- **Services de domínio:** encapsulam algoritmo de extração/chunking.
-- **Jobs/filas:** controlam execução assíncrona, status e logs.
-- **Banco:** persiste estado dos documentos e chunks.
-- **Storage:** persiste binário original e texto extraído.
-- **Integrações externas:** ainda planejadas (LLM/WordPress).
-- **Logs/auditoria:** via `Log::info/error` + metadados em JSONB.
-
----
-
-## 4) Organização de pastas
-
-- `app/Models`: entidades Eloquent (`SourceDocument`, `DocumentChunk`).
-  - Deve conter: regras de persistência, casts, relacionamentos.
-  - Não deve conter: fluxos longos/orquestração pesada.
-- `app/Services`: lógica de domínio reutilizável (`DocumentExtractorService`, `DocumentChunkerService`).
-  - Não deve conter: acoplamento de UI.
-- `app/Services/Documents` / `Content` / `LLM` / `WordPress`:
-  - **Planejado** (ainda não existe essa subdivisão no repositório atual).
-- `app/Jobs`: execução assíncrona e transição de status.
-- `app/Console/Commands`: **não encontrado neste recorte** (planejado em Laravel completo).
-- `app/Filament`: resources/telas administrativas.
-- `database/migrations`: estrutura de banco.
-- `database/seeders`: **não encontrado neste recorte**.
-- `routes`: **não encontrado neste recorte**.
-- `config`: config de chunking presente (`config/chunking.php`).
-- `docs`: documentação de features e revisões.
-- `tests`: **não encontrado neste recorte**.
-- `docker`: **não encontrado neste recorte**.
+### Responsabilidades por camada
+- **Painel administrativo (Filament):** entrada operacional, gatilhos manuais para jobs e visualização de resultados.
+- **Aplicação Laravel:** composição de regras e orquestração de fluxos.
+- **Services de domínio:** concentram regra de negócio por contexto (documentos, conteúdo, LLM).
+- **Jobs:** processamento assíncrono, transições de status e tolerância a falhas.
+- **Banco e storage:** persistência de entidades e artefatos de pipeline.
+- **Integrações externas:** chamadas LLM e (futuramente) envio para WordPress.
+- **Logs/auditoria:** logs estruturados + tabela `llm_runs`.
 
 ---
 
-## 5) Entidades de domínio
+## 4. Organização de pastas
 
-> Abaixo, “implementado” vs “planejado”.
+> A estrutura abaixo combina **estado atual** com **organização esperada** do projeto.
 
-### SourceDocument
-- Responsabilidade: representar documento base enviado.
-- Tabela: `source_documents` (**implementado**).
-- Campos principais: `title`, `description`, `file_path`, `file_type`, `status`, `extracted_text_path`, `metadata`, `created_by`.
-- Relacionamentos: `hasMany(DocumentChunk)`.
-- Status implementados: `uploaded`, `extracting`, `extracted`, `chunking`, `chunked`, `embedded_pending`, `failed`.
-- Criado/atualizado por: Filament Resource e Jobs.
+- `app/Models`
+  - Deve conter: entidades Eloquent, casts e relacionamentos.
+  - Não deve conter: orquestração longa de fluxo.
+  - Exemplos atuais: `SourceDocument`, `DocumentChunk`, `ContentBrief`, `LlmRun`.
 
-### DocumentChunk
-- Responsabilidade: armazenar fragmentos textuais para indexação futura.
-- Tabela: `document_chunks` (**implementado**).
-- Campos: `source_document_id`, `chunk_index`, `content`, `token_count`, `embedding`, `metadata`.
-- Relacionamentos: `belongsTo(SourceDocument)`.
+- `app/Services`
+  - Deve conter: regras reutilizáveis de domínio.
+  - Não deve conter: acoplamento de UI/painel.
+  - Exemplo atual legado: `DocumentExtractorService`, `DocumentChunkerService`.
 
-### ContentBrief / GeneratedPost / PostVersion / SeoAudit / LlmRun / WordPressPublication
-- **Planejado (não implementado neste repositório atual).**
-- Tabelas/modelos/services/jobs associados ainda ausentes.
+- `app/Services/Documents`
+  - Deve conter: embeddings, busca, ingestão técnica.
+  - Exemplo atual: `DocumentEmbeddingService`, `DocumentSearchService`.
+
+- `app/Services/Content`
+  - Deve conter: briefing, prompt, geração e validação editorial.
+  - Exemplo atual: `BriefingBuilderService`, `LlmPromptService`, `OutlineGeneratorService`.
+
+- `app/Services/LLM`
+  - Deve conter: contrato e providers.
+  - Exemplo atual: `LlmClientInterface`, `OpenAiClient`.
+
+- `app/Services/WordPress`
+  - Estado: 🧭 planejado (ainda ausente).
+
+- `app/Jobs`
+  - Deve conter: orquestração assíncrona e status.
+  - Exemplos: `ExtractDocumentTextJob`, `ChunkDocumentJob`, `GenerateDocumentEmbeddingsJob`, `GenerateOutlineFromBriefJob`.
+
+- `app/Console/Commands`
+  - Deve conter: comandos operacionais/debug.
+  - Exemplos: `documents:search`, `briefs:preview-context`.
+
+- `app/Filament`
+  - Deve conter: resources/pages e actions administrativas.
+  - Exemplos: `SourceDocumentResource`, `ContentBriefResource`.
+
+- `database/migrations`
+  - Deve conter: evolução incremental do schema.
+  - Há migrations para `source_documents`, `document_chunks`, `llm_runs`, `content_briefs` e pivot.
+
+- `database/seeders`
+  - Estado atual: não versionado nesta snapshot.
+
+- `routes`
+  - Estado atual: não versionado nesta snapshot.
+
+- `config`
+  - Configs versionadas atualmente: `llm.php`, `chunking.php`.
+  - Configs padrão Laravel (`database.php`, `queue.php`, `filesystems.php`) não estão presentes nesta snapshot.
+
+- `docs`
+  - Deve conter: documentação de features, revisões e guias técnicos.
+
+- `tests`
+  - Estado atual: não versionado nesta snapshot.
+
+- `docker`
+  - Estado atual: não versionado nesta snapshot.
 
 ---
 
-## 6) Fluxos funcionais
+## 5. Entidades de domínio
 
-## 6.1 Fluxo de documentos (implementado)
-Upload → Extração → Chunking → disponível para etapa de embeddings (planejada)
+### 5.1 SourceDocument
+- **Responsabilidade:** documento-fonte e estado do pipeline de ingestão.
+- **Tabela:** `source_documents`.
+- **Campos principais:** `title`, `description`, `file_path`, `file_type`, `source_type`, `status`, `extracted_text_path`, `metadata`, `created_by`.
+- **Relacionamentos:** `hasMany(DocumentChunk)`, `belongsToMany(ContentBrief)`.
+- **Status no código:** `uploaded`, `extracting`, `extracted`, `chunking`, `chunked`, `embedding`, `embedded`, `failed`.
+- **Quem altera:** Filament Resource e jobs de extração/chunking/embedding.
+- **Services/jobs associados:** `DocumentExtractorService`, `DocumentChunkerService`, `DocumentEmbeddingService`, `ExtractDocumentTextJob`, `ChunkDocumentJob`, `GenerateDocumentEmbeddingsJob`.
+
+### 5.2 DocumentChunk
+- **Responsabilidade:** fragmentos de texto para recuperação semântica.
+- **Tabela:** `document_chunks`.
+- **Campos principais:** `source_document_id`, `chunk_index`, `content`, `token_count`, `embedding`, `metadata`.
+- **Relacionamentos:** `belongsTo(SourceDocument)`.
+- **Status:** não possui status próprio; segue estado do documento pai.
+- **Quem altera:** `ChunkDocumentJob`, `DocumentEmbeddingService`.
+- **Services/jobs associados:** `DocumentSearchService`, `DocumentEmbeddingService`.
+
+### 5.3 ContentBrief
+- **Responsabilidade:** briefing SEO estruturado para orientar geração.
+- **Tabela:** `content_briefs`.
+- **Campos principais:** `title`, `content_type`, `main_keyword`, `secondary_keywords`, `target_audience`, `search_intent`, `business_objective`, `tone_of_voice`, `cta_goal`, `mandatory_sources`, `metadata`, `status`.
+- **Relacionamentos:** `belongsToMany(SourceDocument)` via pivot.
+- **Status no código:** `draft`, `ready_to_generate`, `generating`, `generated_outline`.
+- **Quem altera:** `ContentBriefResource`, `GenerateOutlineFromBriefJob`, `OutlineGeneratorService`.
+- **Services/jobs associados:** `BriefingBuilderService`, `LlmPromptService`, `OutlineGeneratorService`.
+
+### 5.4 GeneratedPost
+- **Responsabilidade:** conteúdo final (outline/artigo/metadados/status).
+- **Estado:** 🧭 planejado (modelo/tabela ausentes).
+
+### 5.5 PostVersion
+- **Responsabilidade:** versionamento editorial.
+- **Estado:** 🧭 planejado (modelo/tabela ausentes).
+
+### 5.6 SeoAudit
+- **Responsabilidade:** trilha de checklist/auditoria SEO/editorial.
+- **Estado:** 🧭 planejado (modelo/tabela ausentes).
+
+### 5.7 LlmRun
+- **Responsabilidade:** auditoria de chamadas LLM (operação/modelo/duração/status/erro/uso).
+- **Tabela:** `llm_runs`.
+- **Campos principais:** `provider`, `model`, `operation`, `related_type`, `related_id`, `status`, `error`, `duration_ms`, `prompt_tokens`, `completion_tokens`, `total_tokens`, `metadata`.
+- **Quem cria:** `DocumentEmbeddingService`, `DocumentSearchService`, `OutlineGeneratorService`.
+
+### 5.8 WordPressPublication
+- **Responsabilidade:** histórico de envio WordPress.
+- **Estado:** 🧭 planejado (modelo/tabela ausentes).
+
+---
+
+## 6. Fluxos funcionais
+
+## 6.1 Fluxo de documentos
+**Upload → extração → chunking → embeddings → documento disponível para busca**
 
 1. **Upload**
-   - Entrada: arquivo TXT/PDF/DOCX + título.
-   - Processamento: upload no disco local (`source-documents`).
-   - Saída: `SourceDocument` status `uploaded`.
+   - Entrada: arquivo (TXT/PDF/DOCX) e metadados básicos.
+   - Processamento: gravação no disco local (`source-documents`).
+   - Saída: `SourceDocument` com status `uploaded`.
 
 2. **Extração**
-   - Entrada: `SourceDocument` com `file_path` válido.
+   - Entrada: `SourceDocument.file_path`.
    - Service: `DocumentExtractorService`.
    - Job: `ExtractDocumentTextJob`.
-   - Saída: arquivo em `extracted-documents/{id}.txt`, status `extracted`.
-   - Erros: arquivo ausente, parser PDF/DOCX falho, texto vazio.
+   - Saída: `extracted-documents/{id}.txt`, status `extracted`.
+   - Erros comuns: arquivo ausente, formato não suportado, texto vazio.
 
 3. **Chunking**
    - Entrada: texto extraído.
    - Service: `DocumentChunkerService`.
    - Job: `ChunkDocumentJob`.
-   - Saída: registros em `document_chunks`, status `chunked`.
-   - Erros: `extracted_text_path` inválido, exceções de processamento.
+   - Saída: `document_chunks` preenchidos, status `chunked`.
+   - Erros comuns: `extracted_text_path` inválido, falha de parsing/cálculo.
+
+4. **Embeddings**
+   - Entrada: chunks sem embedding.
+   - Service: `DocumentEmbeddingService`.
+   - Job: `GenerateDocumentEmbeddingsJob`.
+   - Saída: embeddings gerados e status `embedded` quando completo.
+   - Erros comuns: API key ausente, timeout/rede OpenAI, dimensão inválida.
 
 ## 6.2 Fluxo de briefing
-- **Planejado.** Ainda sem entidade/service/job/resource.
+**Criação do briefing → seleção de documentos → busca de contexto → pronto para geração**
+- Implementação atual:
+  - `ContentBriefResource` permite associar documentos e status.
+  - `BriefingBuilderService` monta query e contexto por busca semântica.
+  - `PreviewBriefContextCommand` e action “Pré-visualizar contexto” ajudam operação.
 
 ## 6.3 Fluxo de geração de conteúdo
-- **Planejado.** Ainda sem integração LLM.
+**Briefing → contexto → outline → (artigo/metadados planejados) → versão inicial**
+- Implementado hoje:
+  - geração de **outline** via `GenerateOutlineFromBriefJob` + `OutlineGeneratorService`.
+  - persistência do outline em `content_briefs.metadata.outline`.
+- Parcial/planejado:
+  - geração de artigo completo, metadados SEO e versão editorial.
 
 ## 6.4 Fluxo de revisão
-- **Planejado.** Ainda sem módulo de checklist/auditoria/versionamento.
+**Post gerado → checklist/auditoria → edição manual → versão → aprovação**
+- Estado: 🟡 parcial.
+- Existe revisão operacional manual de briefing/outline no painel.
+- Módulos formais (`SeoAudit`, `PostVersion`, aprovação final de post) ainda planejados.
 
 ## 6.5 Fluxo WordPress
-- **Planejado.** Ainda sem client REST e registro de publicação.
+**Post aprovado → conversão para HTML → envio REST API → draft → registro**
+- Estado: 🧭 planejado.
+- Não há serviço/job/model de publicação implementado nesta snapshot.
 
 ---
 
-## 7) Status e máquina de estados
+## 7. Status e máquina de estados
 
-### 7.1 Documentos
+### 7.1 Status de documentos
 
 | Status | Significado | Pode ir para | Quem altera |
 |---|---|---|---|
-| uploaded | Documento recém enviado | extracting | criação + action Filament |
-| extracting | Extração em andamento | extracted / failed | `ExtractDocumentTextJob` |
-| extracted | Texto extraído | chunking | `ExtractDocumentTextJob` |
-| chunking | Chunking em andamento | chunked / failed | `ChunkDocumentJob` |
-| chunked | Chunks prontos | embedded_pending (planejado) | `ChunkDocumentJob` / futura etapa embeddings |
-| embedded_pending | aguardando embeddings | embedding/embedded (planejado) | planejado |
-| failed | erro em etapa assíncrona | extracting/chunking (retry manual) | jobs + actions |
+| uploaded | Documento recém criado | extracting, failed | criação/ações do painel |
+| extracting | Extração em andamento | extracted, failed | `ExtractDocumentTextJob` |
+| extracted | Texto extraído com sucesso | chunking, failed | `ExtractDocumentTextJob` + ações |
+| chunking | Chunking em andamento | chunked, failed | `ChunkDocumentJob` |
+| chunked | Chunks prontos | embedding, failed | `ChunkDocumentJob` + ações |
+| embedding | Geração de embeddings em execução | embedded, failed | `GenerateDocumentEmbeddingsJob` |
+| embedded | Embeddings finalizados | (consumo por busca/briefing) | `GenerateDocumentEmbeddingsJob` |
+| failed | Falha operacional | extracting/chunking/embedding (retry manual) | jobs/actions |
 
-### 7.2 Briefing/Post
-Todos os status abaixo estão **planejados** no estado atual:
-`draft`, `ready_to_generate`, `generating`, `generated`, `needs_review`, `changes_requested`, `approved`, `sent_to_wordpress`, `failed`.
+### 7.2 Status de briefing/post
+
+| Status | Significado | Pode ir para | Quem altera |
+|---|---|---|---|
+| draft | Briefing em construção | ready_to_generate | Resource/action |
+| ready_to_generate | Pronto para job de outline | generating, draft | Resource/action |
+| generating | Job de geração em execução | generated_outline, ready_to_generate | job/service |
+| generated_outline | Outline salvo em metadata | draft (ajustes), próximos estados planejados | service/action |
+| generated | 🧭 planejado (estado pós-artigo completo) | needs_review | planejado |
+| needs_review | 🧭 planejado | changes_requested, approved | planejado |
+| changes_requested | 🧭 planejado | generating/needs_review | planejado |
+| approved | 🧭 planejado | sent_to_wordpress | planejado |
+| sent_to_wordpress | 🧭 planejado | — | planejado |
+| failed | Falha de pipeline editorial | ready_to_generate/draft | job/service |
 
 ---
 
-## 8) Banco de dados
+## 8. Banco de dados
 
-- Banco-alvo: PostgreSQL (indicado por uso de `jsonb`).
-- pgvector: **planejado**; atualmente embeddings estão em `jsonb`.
-- Tabelas implementadas:
-  - `source_documents`
-  - `document_chunks`
-- Relacionamentos:
-  - `document_chunks.source_document_id` FK com cascade delete.
-- JSON/JSONB:
-  - `source_documents.metadata`
-  - `document_chunks.embedding`
-  - `document_chunks.metadata`
-- Soft deletes:
-  - `source_documents` possui `softDeletes`.
-- Índices atuais:
-  - `source_documents`: status, file_type, created_by
-  - `document_chunks`: unique `(source_document_id, chunk_index)` + índice `source_document_id`
+- **Banco usado:** PostgreSQL (migrations com `jsonb` e SQL `vector`).
+- **Motivo:** suporte robusto a JSONB, integridade relacional e extensão vetorial.
+- **pgvector:** habilitado por migration (`CREATE EXTENSION IF NOT EXISTS vector`) e cast da coluna `embedding` para `vector(dim)`.
+- **Tabelas principais hoje:** `source_documents`, `document_chunks`, `llm_runs`, `content_briefs`, `content_brief_source_document`.
+- **Relacionamentos principais:**
+  - `source_documents` 1:N `document_chunks`
+  - `content_briefs` N:N `source_documents`
+- **JSON/JSONB:** `metadata` em múltiplas entidades; `secondary_keywords` e `mandatory_sources` em briefing.
+- **Soft deletes:** `source_documents` e `content_briefs`.
+- **Índices relevantes:** status/tipos em documentos e briefs; índices por operação/status em `llm_runs`; unique de pivot.
 
 ### Regras para migrations
 - Preferir migrations incrementais.
-- Garantir `migrate` do zero.
-- Evitar alterar migration antiga já aplicada.
 - Manter compatibilidade PostgreSQL.
-- Usar FK quando fizer sentido.
-- Usar `jsonb` para metadados flexíveis.
-- Quando migrar para pgvector, padronizar dimensão e backfill.
+- Garantir `migrate` do zero em ambiente limpo.
+- Não alterar migration antiga já aplicada sem justificativa forte.
+- Usar foreign keys quando fizer sentido.
+- Usar `jsonb` para estruturas flexíveis.
+- Cuidar da dimensão dos embeddings para manter consistência com `OPENAI_EMBEDDING_DIMENSIONS`.
 
 ---
 
-## 9) Filas, jobs e processamento assíncrono
+## 9. Filas, jobs e processamento assíncrono
 
-Por que usar filas: evitar bloqueio da UI e permitir retries observáveis.
+### Por que usar filas
+- Evitar travar requisições do painel em operações pesadas.
+- Permitir retry e observabilidade.
+- Isolar falhas de integração externa.
 
-Filas esperadas do produto: `documents`, `embeddings`, `generation`, `wordpress`, `default`.
+### Filas esperadas
+- `documents`
+- `embeddings`
+- `generation`
+- `wordpress`
+- `default`
 
-Estado atual: jobs não definem `$queue` explicitamente (caem na fila padrão configurada no ambiente).
+### Estado atual
+- `GenerateDocumentEmbeddingsJob` usa fila `embeddings`.
+- `GenerateOutlineFromBriefJob` usa fila `generation`.
+- `ExtractDocumentTextJob` e `ChunkDocumentJob` não definem fila explicitamente (caem na default).
 
 | Job | Fila | Responsabilidade | Entrada | Saída | Falhas comuns |
 |---|---|---|---|---|---|
-| `ExtractDocumentTextJob` | default (atual) / documents (planejado) | extrair texto do arquivo | `documentId` | texto extraído + status `extracted` | arquivo ausente, PDF/DOCX inválido, texto vazio |
-| `ChunkDocumentJob` | default (atual) / documents (planejado) | gerar chunks | `documentId` | `document_chunks` + status `chunked` | texto extraído ausente, erro de escrita/leitura |
+| `ExtractDocumentTextJob` | default | Extrair texto do documento | `documentId` | `extracted_text_path` + status `extracted` | Arquivo ausente, parser falho, texto vazio |
+| `ChunkDocumentJob` | default | Gerar chunks | `documentId` | registros em `document_chunks` + status `chunked` | Texto não encontrado, erro de chunking |
+| `GenerateDocumentEmbeddingsJob` | embeddings | Gerar embeddings dos chunks | `documentId` | embeddings salvos + status `embedded` | API key ausente, falha de rede/timeout |
+| `GenerateOutlineFromBriefJob` | generation | Gerar outline via LLM | `briefId` | `metadata.outline` + status `generated_outline` | JSON inválido do provider, falha OpenAI |
 
 Boas práticas:
-- Sempre atualizar status antes/depois.
-- Em exceção: status `failed`, log estruturado e rethrow quando aplicável.
+- Jobs devem atualizar status inicial/final.
+- Em falha, marcar estado consistente (`failed` quando aplicável).
+- Logar IDs de domínio e duração quando possível.
 
 ---
 
-## 10) Services e regras de negócio
+## 10. Services e regras de negócio
 
-### Services/Documents (implementado parcialmente via `app/Services`)
-- `DocumentExtractorService`: extração TXT/PDF/DOCX.
-- `DocumentChunkerService`: chunking por parágrafo + overlap.
-- Embeddings e busca semântica: **planejados**.
+## Services/Documents
+- `DocumentEmbeddingService`: gera e persiste embeddings por chunk; registra `llm_runs`.
+- `DocumentSearchService`: busca semântica com operador `<=>` do pgvector.
 
-### Services/Content (planejado)
-Briefing, outline, artigo, metadados, SEO audit, versionamento.
+## Services/Content
+- `BriefingBuilderService`: monta query de contexto e resolve documentos obrigatórios.
+- `LlmPromptService`: centraliza prompt estruturado para outline.
+- `OutlineGeneratorService`: executa chamada LLM, valida JSON, persiste resultado e auditoria.
 
-### Services/LLM (planejado)
-Client/provedor/prompts centralizados.
+## Services/LLM
+- `LlmClientInterface`: contrato para embeddings/texto.
+- `OpenAiClient`: implementação atual (OpenAI).
 
-### Services/WordPress (planejado)
-Client REST + publisher.
+## Services/WordPress
+- Estado: 🧭 planejado.
 
-Regras arquiteturais:
-- Jobs orquestram execução assíncrona.
-- Services concentram regra.
-- Models sem lógica pesada.
-- Resource Filament sem regra complexa de domínio.
-- Prompts centralizados (quando módulo LLM existir).
+### Regras arquiteturais
+- Jobs **orquestram** etapas assíncronas.
+- Services concentram regra de negócio.
+- Models evitam lógica pesada.
+- Resources/Controllers evitam regra complexa.
+- Prompts devem ficar centralizados (evitar duplicação).
 
 ---
 
-## 11) Integração LLM
+## 11. Integração LLM
 
-Estado atual: **planejado** (não implementado no repositório atual).
+- **Provider inicial:** OpenAI.
+- **Variáveis de ambiente atuais:** `LLM_PROVIDER`, `OPENAI_API_KEY`, `OPENAI_EMBEDDING_MODEL`, `OPENAI_EMBEDDING_DIMENSIONS`.
+- **Modelo chat padrão:** `gpt-4.1-mini` (config `llm.php`).
+- **Formato de prompt:** mensagens com papéis `system`/`user`, retorno esperado em JSON para outline.
+- **Registro de execução:** tabela `llm_runs`.
+- **Tratamento de erro:** validação de chave ausente, HTTP >=400, resposta vazia, JSON inválido.
 
-## Operações LLM (alvo)
-- `generate_embedding`
-- `generate_outline`
-- `generate_article`
-- `generate_metadata`
-- `audit_editorial`
+## Operações LLM
 
 | Operação | Entrada | Saída esperada | Service | Registro em `llm_runs` |
 |---|---|---|---|---|
-| generate_embedding | texto de chunk | vetor | planejado | planejado |
-| generate_outline | briefing + contexto | outline estruturado | planejado | planejado |
-| generate_article | outline + contexto | artigo em seções | planejado | planejado |
-| generate_metadata | artigo | title/meta/slug/excerpt | planejado | planejado |
-| audit_editorial | artigo + regras | checklist e score | planejado | planejado |
+| `generate_embedding` | texto de chunk | vetor com dimensão configurada | `DocumentEmbeddingService` | success/failed + tokens/duração |
+| `search_query_embedding` | texto da consulta | embedding da consulta + resultados por distância | `DocumentSearchService` | success/failed + metadados de busca |
+| `generate_outline` | briefing + chunks relevantes | JSON de outline válido | `OutlineGeneratorService` | success/failed + prompt/response |
+| `generate_article` | 🧭 planejado | artigo estruturado | planejado | planejado |
+| `generate_metadata` | 🧭 planejado | metadados SEO | planejado | planejado |
+| `audit_editorial` | 🧭 planejado | auditoria/checklist | planejado | planejado |
 
 Cuidados:
-- Não logar chave de API.
-- Validar JSON de resposta.
-- Timeout e retry com idempotência.
-- Tratar ausência de API key.
-- Limitar payload para custo/latência.
+- Não enviar dados desnecessários ao provider.
+- Nunca logar API keys.
+- Lidar com JSON inválido explicitamente.
+- Tratar timeout/rede com mensagens operacionais úteis.
+- Falhar de forma clara quando `OPENAI_API_KEY` estiver ausente.
 
 ---
 
-## 12) Integração WordPress
+## 12. Integração WordPress
 
-Estado atual: **planejado**.
+### Estado atual
+🧭 Planejado. Não há implementação no repositório para envio REST neste momento.
 
-Diretriz alvo:
-- Endpoint: `/wp-json/wp/v2/posts`
-- Auth: Application Password
-- Publicar sempre como `draft` no MVP
-- Registrar envio em `wordpress_publications` (planejado)
+### Contrato esperado (MVP)
+- Endpoint REST típico: `/wp-json/wp/v2/posts`.
+- Autenticação esperada: Application Password.
+- Status de publicação: sempre `draft`.
+- Persistência de trilha: `wordpress_publications` (planejado).
 
-Payload mínimo esperado:
-
+### Exemplo de payload esperado
 ```json
 {
   "title": "...",
@@ -312,103 +425,122 @@ Payload mínimo esperado:
 }
 ```
 
-Fora do MVP: publicação final automática sem revisão humana.
+**Importante:** publicação final automática está fora do MVP.
 
 ---
 
-## 13) Storage e arquivos
+## 13. Storage e arquivos
 
-Estado atual implementado:
-- Originais: `storage/app/source-documents`
-- Extraídos: `storage/app/extracted-documents`
-- Logs: `storage/logs`
+### Estado atual
+- Arquivos originais: `storage/app/source-documents`.
+- Textos extraídos: `storage/app/extracted-documents`.
+- Logs: `storage/logs`.
 
-Boas práticas:
-- Salvar no banco somente path relativo.
-- Garantir permissão de escrita no storage.
-- Reprocessamento deve ser seguro (chunking já remove chunks antigos antes de recriar).
-- Nunca versionar arquivos de runtime no Git.
-
----
-
-## 14) Logs e auditoria
-
-Implementado:
-- Logs Laravel em jobs (`info/error` com `document_id`, duração, erro).
-- Metadados de auditoria em `source_documents.metadata` (`last_extraction`, `last_chunking`, erros).
-
-Planejado:
-- tabela `llm_runs`
-- tabela `wordpress_publications`
-
-Boas práticas:
-- Sempre logar IDs técnicos.
-- Incluir duração quando útil.
-- Não logar segredos/tokens/payload sensível completo.
-- Classificar erro de usuário vs integração vs interno.
+### Regras
+- Persistir paths relativos no banco (`file_path`, `extracted_text_path`).
+- Garantir permissões corretas do storage no ambiente local/container.
+- Não versionar arquivos gerados de runtime.
+- Planejar rotinas de limpeza/reprocessamento sem perder rastreabilidade.
 
 ---
 
-## 15) Painel administrativo / Filament
+## 14. Logs e auditoria
+
+### Fontes atuais
+- Logs Laravel (`Log::info`, `Log::error`, `Log::warning`) nos jobs/services.
+- Tabela `llm_runs` para chamadas LLM.
+
+### Fontes planejadas
+- `wordpress_publications` para trilha de envio ao WordPress.
+
+### Boas práticas
+- Sempre logar IDs (`document_id`, `brief_id`, `chunk_id`).
+- Registrar duração quando útil.
+- Não logar segredos/credenciais.
+- Salvar mensagens de erro acionáveis para debug.
+- Diferenciar erro de usuário/dados, erro de integração e erro interno.
+
+---
+
+## 15. Painel administrativo / Filament
+
+### Resources existentes
 
 | Resource | Entidade | Função | Actions principais |
 |---|---|---|---|
-| `SourceDocumentResource` | `SourceDocument` | upload/listagem/edição e operação inicial de pipeline | Extrair texto, Gerar chunks, Ver chunks, Ver texto extraído, Baixar/Abrir |
+| `SourceDocumentResource` | `SourceDocument` | Operar ingestão técnica | Extrair texto, gerar chunks, gerar embeddings, visualizar chunks/texto, preview busca semântica |
+| `ContentBriefResource` | `ContentBrief` | Operar briefing e outline | Pré-visualizar contexto, gerar outline, ver outline, transições de status |
 
-Planejado: resources para briefing, posts gerados, auditoria, publicações WordPress.
+### Recursos planejados
+- Resources para `GeneratedPost`, `PostVersion`, `SeoAudit`, `WordPressPublication`.
+
+### Diretrizes
+- Actions devem respeitar status atual.
+- Actions sensíveis devem pedir confirmação.
+- Tabelas com filtros por status/tipo.
+- Badges de status consistentes.
 
 ---
 
-## 16) Testes
+## 16. Testes
 
-Estado atual: pasta `tests` não encontrada neste recorte.
+### Estratégia
+- Priorizar testes de services e jobs por módulo.
+- Mockar/fakear chamadas LLM e WordPress.
+- Não chamar APIs externas reais nos testes automatizados.
 
-Comandos recomendados para pipeline de qualidade:
+### Comandos recomendados
 - `composer validate`
-- `php artisan test`
 - `php artisan route:list`
-- em Docker: `docker compose exec app php artisan test`
+- `php artisan test`
+- Com Docker: `docker compose exec app php artisan test`
 
-Recomendações:
-- Testar services isolados.
-- Testar jobs com Queue fake quando fizer sentido.
-- Mockar LLM e WordPress (quando existirem).
-- Testar migrate do zero em CI.
+### Estado atual desta snapshot
+- Pasta `tests` não está versionada aqui.
+- Ainda assim, recomenda-se ampliar cobertura para:
+  - extração/chunking
+  - embeddings/search
+  - geração de outline
+  - transições de status
 
 ---
 
-## 17) Setup local e comandos úteis
+## 17. Setup local e comandos úteis
 
-Como não há `README.md` nesta snapshot, recomenda-se criar/expandir README em etapa própria.
+Como referência principal, usar a documentação operacional do projeto (quando `README.md` estiver disponível no repositório completo).
 
-Comandos essenciais esperados em ambiente Laravel completo:
+Comandos essenciais esperados:
+- `docker compose up -d --build`
 - `composer install`
 - `php artisan key:generate`
 - `php artisan migrate`
 - `php artisan db:seed`
-- `php artisan queue:work`
 - `php artisan horizon`
+- `php artisan queue:work`
 - `php artisan test`
-- `docker compose up`
+
+Comandos de debug já implementados:
+- `php artisan documents:search "consulta" --limit=8`
+- `php artisan briefs:preview-context 1 --limit=8`
 
 ---
 
-## 18) Guia para criar um novo módulo
+## 18. Guia para criar um novo módulo
 
-Exemplo: módulo de sugestão de links internos.
+Exemplo: **módulo de sugestão de links internos**.
 
-1. Definir escopo e fronteira do módulo.
-2. Definir entidade e estado (status).
+1. Definir escopo (entrada, saída, limites do MVP).
+2. Criar/revisar entidade e tabela.
 3. Criar migration incremental.
 4. Criar model com casts/relacionamentos.
-5. Criar service(s) de domínio.
+5. Criar service de domínio.
 6. Criar job se assíncrono.
-7. Expor em Filament (resource/action).
-8. Adicionar logs e trilha de auditoria.
-9. Criar testes unitários/integração.
+7. Criar Resource/action no Filament.
+8. Adicionar logs/auditoria.
+9. Adicionar testes.
 10. Atualizar docs técnicas.
-11. Atualizar AGENTS.md (se regras de trabalho mudarem).
-12. Atualizar README (se setup/comando mudar).
+11. Atualizar AGENTS.md se regra de trabalho mudar.
+12. Atualizar README se setup/comandos mudarem.
 
 Checklist:
 - [ ] escopo documentado
@@ -425,16 +557,20 @@ Checklist:
 
 ---
 
-## 19) Guia para manter módulo existente
+## 19. Guia para manter um módulo existente
 
-- Ler docs antes de alterar.
-- Mapear fluxo e status impactados.
-- Preservar compatibilidade de dados.
-- Preferir migration incremental.
-- Ajustar testes + validações.
-- Atualizar documentação e registrar riscos.
+1. Ler documentação e código atual antes de editar.
+2. Identificar fluxo afetado e estados envolvidos.
+3. Preservar compatibilidade de dados.
+4. Usar migration incremental (evitar editar migration antiga).
+5. Ajustar jobs/services mantendo idempotência.
+6. Atualizar actions/fluxo de painel se necessário.
+7. Atualizar testes.
+8. Rodar validações.
+9. Atualizar documentação.
+10. Registrar riscos/rollback.
 
-Checklist de manutenção:
+Checklist:
 - [ ] comportamento atual entendido
 - [ ] impacto mapeado
 - [ ] migrations seguras
@@ -447,71 +583,71 @@ Checklist de manutenção:
 
 ---
 
-## 20) Guia para refatorações
+## 20. Guia para refatorações
 
 Regras:
-- Não misturar grande feature com refatoração ampla.
-- Refatorar em passos pequenos.
-- Preservar comportamento observável.
+- Não misturar refatoração grande com feature nova.
+- Refatorar em passos pequenos e verificáveis.
+- Preservar comportamento funcional.
 - Adicionar testes antes, quando possível.
-- Documentar motivo da refatoração.
+- Documentar motivação e ganho.
 - Evitar abstração prematura.
-- Atualizar AGENTS.md quando regra operacional mudar.
+- Atualizar AGENTS.md quando diretrizes mudarem.
 
 Ciclo sugerido de revisão:
-- a cada 5 commits de feature
-- executar revisão/refatoração geral
-- atualizar `docs/REFACTOR_REVIEW.md`
-- revisar AGENTS.md
+- A cada 5 commits de feature, executar revisão/refatoração geral.
+- Atualizar `docs/REFACTOR_REVIEW.md`.
+- Revisar aderência ao `AGENTS.md`.
 
 ---
 
-## 21) Segurança e segredos
+## 21. Segurança e segredos
 
 - Nunca commitar `.env` real.
-- Nunca commitar tokens/chaves.
-- Variáveis sensíveis só em `.env.example` sem valor real.
+- Nunca commitar tokens/credenciais.
+- Manter variáveis no `.env.example` sem valores sensíveis.
 - Mascarar segredos em logs.
-- Cuidado com payload enviado/armazenado de LLM e WordPress.
-- Revisão humana obrigatória antes de envio externo.
+- Revisar payloads enviados a LLM para evitar dados desnecessários/sensíveis.
+- Revisar payloads de integração WordPress para evitar exposição indevida.
+- Revisão humana obrigatória antes do envio externo.
 
 ---
 
-## 22) Limitações conhecidas do MVP
+## 22. Limitações conhecidas do MVP
 
 - Sem OCR.
-- Sem publicação automática final.
+- Sem publicação automática final no WordPress.
 - Sem calendário editorial.
-- Sem Search Console.
-- Sem SEMrush/Google Trends.
-- Sem multiempresa.
+- Sem integração Search Console.
+- Sem integração SEMrush/Google Trends.
+- Sem multiempresa/SaaS.
 - Sem editor avançado dedicado.
 - Sem geração de imagens.
-- Qualidade depende dos documentos e prompts.
-- LLM pode errar; revisão humana é obrigatória.
+- Qualidade depende da qualidade dos documentos e prompts.
+- LLM pode errar: revisão humana continua obrigatória.
 
 ---
 
-## 23) Roadmap técnico sugerido (não é promessa)
+## 23. Roadmap técnico sugerido (não-promessa)
 
 ### Curto prazo
-- Implementar embeddings + fila dedicada.
-- Introduzir busca semântica e seleção de contexto.
-- Criar testes de services/jobs atuais.
+- Implementar módulo `GeneratedPost` + fluxo de artigo/metadados.
+- Implementar `SeoAudit` básico.
+- Completar estratégia de testes automatizados.
 
 ### Médio prazo
-- Módulo de briefing e geração (outline/artigo/metadados).
-- Tabela de auditoria LLM (`llm_runs`).
-- Integração WordPress draft com rastreabilidade.
+- Implementar integração WordPress (`draft`) com `WordPressPublication`.
+- Evoluir observabilidade de filas (Horizon + métricas de erro).
+- Consolidação de políticas de retry e idempotência.
 
 ### Pós-MVP
-- Melhorias editoriais avançadas.
-- Observabilidade e métricas de custo LLM.
-- Evolução para OCR e enriquecimento externo.
+- Melhorias avançadas de QA editorial.
+- Integrações SEO adicionais (quando houver escopo).
+- Otimizações de custo/performance de prompts e embeddings.
 
 ---
 
-## 24) Checklist rápido para PR/commit
+## 24. Checklist rápido para PR/commit
 
 - [ ] escopo pequeno
 - [ ] código revisado
@@ -524,3 +660,11 @@ Ciclo sugerido de revisão:
 - [ ] sem segredos
 - [ ] sem feature fora do pedido
 
+---
+
+## Apêndice — diferenças importantes entre “esperado” e “atual”
+
+1. `README.md` não está presente nesta snapshot local; portanto não foi possível adicionar link para este guia nesta tarefa.
+2. `docker-compose.yml` não está presente nesta snapshot local.
+3. `config/database.php`, `config/queue.php` e `config/filesystems.php` não estão presentes nesta snapshot local.
+4. Há funcionalidades já além do escopo inicialmente descrito em versões anteriores do guia (embeddings, busca semântica, content briefs e geração de outline).
