@@ -27,6 +27,7 @@ class ChunkDocumentJob implements ShouldQueue
     public function handle(DocumentChunkerService $chunker): void
     {
         $document = SourceDocument::query()->with('chunks')->find($this->documentId);
+        $startedAt = microtime(true);
 
         if (! $document) {
             Log::error('Documento não encontrado para chunking.', ['document_id' => $this->documentId]);
@@ -71,7 +72,7 @@ class ChunkDocumentJob implements ShouldQueue
             }
 
             $document->update([
-                'status' => SourceDocument::STATUS_EMBEDDED_PENDING,
+                'status' => SourceDocument::STATUS_CHUNKED,
                 'metadata' => array_merge($document->metadata ?? [], [
                     'last_chunking' => [
                         'chunks_count' => count($chunks),
@@ -81,6 +82,15 @@ class ChunkDocumentJob implements ShouldQueue
                     ],
                     'last_chunking_error' => null,
                 ]),
+            ]);
+
+            Log::info('Chunking concluído com sucesso.', [
+                'document_id' => $document->id,
+                'status' => SourceDocument::STATUS_CHUNKED,
+                'chunks_count' => count($chunks),
+                'target_chars' => $targetChars,
+                'overlap_chars' => $overlapChars,
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
             ]);
         } catch (Throwable $exception) {
             $document->update([
@@ -95,6 +105,7 @@ class ChunkDocumentJob implements ShouldQueue
 
             Log::error('Falha ao gerar chunks do documento.', [
                 'document_id' => $document->id,
+                'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
                 'error' => $exception->getMessage(),
             ]);
 
