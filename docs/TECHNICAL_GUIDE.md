@@ -26,7 +26,8 @@ O **leticia-seo-mvp** é um MVP em Laravel para transformar documentos-fonte em 
 ### Estado atual do fluxo
 - ✅ Implementado: upload de documentos, extração (TXT/PDF/DOCX), chunking, embeddings por chunk, busca semântica, briefings, geração de outline via LLM, painel Filament para operação.
 - 🟡 Parcialmente implementado: pipeline editorial completo após outline (artigo, metadados SEO, auditorias detalhadas, versionamento editorial completo).
-- 🧭 Planejado: GeneratedPost, PostVersion, SeoAudit, publicação WordPress com trilha própria.
+- 🟡 Parcialmente implementado: GeneratedPost, PostVersion e SeoAudit já possuem models/migrations/resources, mas o fluxo completo até WordPress ainda está incompleto.
+- 🧭 Planejado: publicação WordPress com trilha própria (`WordPressPublication`) e automações finais de envio draft.
 - 🚫 Fora do MVP: OCR, publicação final automática em WordPress (somente draft), multiempresa/SaaS, frontend React separado.
 
 ---
@@ -176,16 +177,27 @@ OpenAI (implementado) / WordPress REST API (planejado)
 - **Services/jobs associados:** `BriefingBuilderService`, `LlmPromptService`, `OutlineGeneratorService`.
 
 ### 5.4 GeneratedPost
-- **Responsabilidade:** conteúdo final (outline/artigo/metadados/status).
-- **Estado:** 🧭 planejado (modelo/tabela ausentes).
+- **Responsabilidade:** conteúdo gerado (artigo, metadados, score e status editorial).
+- **Tabela:** `generated_posts`.
+- **Campos principais:** `content_brief_id`, `title`, `slug`, `meta_title`, `meta_description`, `excerpt`, `content`, `faq_json`, `cta_json`, `status`, `seo_score`, `readability_score`, `tone_score`, `approved_by`.
+- **Relacionamentos:** `belongsTo(ContentBrief)`, `hasMany(PostVersion)`, `hasMany(SeoAudit)`.
+- **Status no código:** `needs_review` (implementado no model); demais estados editoriais são parcialmente tratados no painel/fluxos.
+- **Quem altera:** `GeneratedPostResource`, `PostVersionService`, `SeoAuditService`, `EditorialAuditService`, `MetadataGeneratorService`.
 
 ### 5.5 PostVersion
-- **Responsabilidade:** versionamento editorial.
-- **Estado:** 🧭 planejado (modelo/tabela ausentes).
+- **Responsabilidade:** versionamento de edições de `GeneratedPost`.
+- **Tabela:** `post_versions`.
+- **Campos principais:** `generated_post_id`, `version_number`, `title`, `content`, `meta_title`, `meta_description`, `change_summary`, `created_by`, `created_at`.
+- **Relacionamentos:** `belongsTo(GeneratedPost)`.
+- **Quem altera:** `PostVersionService` e ações de `GeneratedPostResource`.
 
 ### 5.6 SeoAudit
-- **Responsabilidade:** trilha de checklist/auditoria SEO/editorial.
-- **Estado:** 🧭 planejado (modelo/tabela ausentes).
+- **Responsabilidade:** checklist/auditoria SEO/editorial por post gerado.
+- **Tabela:** `seo_audits`.
+- **Campos principais:** `generated_post_id`, `audit_type`, `score`, `checks_json`, `warnings_json`, `errors_json`.
+- **Relacionamentos:** `belongsTo(GeneratedPost)`.
+- **Quem altera:** `SeoAuditService` e `EditorialAuditService`.
+- **Nota de estado:** tabela/model implementados; evolução de regras e cobertura de fluxo ainda parcial.
 
 ### 5.7 LlmRun
 - **Responsabilidade:** auditoria de chamadas LLM (operação/modelo/duração/status/erro/uso).
@@ -249,7 +261,7 @@ OpenAI (implementado) / WordPress REST API (planejado)
 **Post gerado → checklist/auditoria → edição manual → versão → aprovação**
 - Estado: 🟡 parcial.
 - Existe revisão operacional manual de briefing/outline no painel.
-- Módulos formais (`SeoAudit`, `PostVersion`, aprovação final de post) ainda planejados.
+- Módulos de `SeoAudit` e `PostVersion` já existem; a governança completa de aprovação/publicação ainda está em evolução.
 
 ## 6.5 Fluxo WordPress
 **Post aprovado → conversão para HTML → envio REST API → draft → registro**
@@ -470,9 +482,10 @@ Cuidados:
 |---|---|---|---|
 | `SourceDocumentResource` | `SourceDocument` | Operar ingestão técnica | Extrair texto, gerar chunks, gerar embeddings, visualizar chunks/texto, preview busca semântica |
 | `ContentBriefResource` | `ContentBrief` | Operar briefing e outline | Pré-visualizar contexto, gerar outline, ver outline, transições de status |
+| `GeneratedPostResource` | `GeneratedPost` | Revisão editorial e versionamento | gerar artigo/metadados, auditoria SEO/editorial, aprovar, criar versão |
 
 ### Recursos planejados
-- Resources para `GeneratedPost`, `PostVersion`, `SeoAudit`, `WordPressPublication`.
+- Resource específico para `WordPressPublication` e ações de envio/reenvio dedicadas.
 
 ### Diretrizes
 - Actions devem respeitar status atual.
@@ -631,8 +644,8 @@ Ciclo sugerido de revisão:
 ## 23. Roadmap técnico sugerido (não-promessa)
 
 ### Curto prazo
-- Implementar módulo `GeneratedPost` + fluxo de artigo/metadados.
-- Implementar `SeoAudit` básico.
+- Evoluir fluxo de `GeneratedPost` para cobrir cenários editoriais extremos.
+- Refinar regras e cobertura de `SeoAudit` (score/checks e ações corretivas).
 - Completar estratégia de testes automatizados.
 
 ### Médio prazo
@@ -665,6 +678,6 @@ Ciclo sugerido de revisão:
 ## Apêndice — diferenças importantes entre “esperado” e “atual”
 
 1. `README.md` não está presente nesta snapshot local; portanto não foi possível adicionar link para este guia nesta tarefa.
-2. `docker-compose.yml` não está presente nesta snapshot local.
+2. `docker-compose.yml` não está presente nesta snapshot local (somente referência de stack esperada).
 3. `config/database.php`, `config/queue.php` e `config/filesystems.php` não estão presentes nesta snapshot local.
-4. Há funcionalidades já além do escopo inicialmente descrito em versões anteriores do guia (embeddings, busca semântica, content briefs e geração de outline).
+4. O repositório já implementa partes editoriais além do básico: `GeneratedPost`, `PostVersion` e `SeoAudit` (models, migrations, services e resource), mas a integração WordPress ainda não está implementada.
