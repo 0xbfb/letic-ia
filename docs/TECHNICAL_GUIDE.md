@@ -266,8 +266,9 @@ OpenAI (implementado) / WordPress REST API (implementado para draft)
 
 ## 6.5 Fluxo WordPress
 **Post aprovado → conversão para HTML → envio REST API → draft → registro**
-- Estado: 🧭 planejado.
-- Não há serviço/job/model de publicação implementado nesta snapshot.
+- Estado: ✅ implementado no MVP atual (com pontos de evolução).
+- Serviços/Job/Model atuais: `WordPressClient`, `WordPressPostPublisher`, `SendPostToWordPressJob`, `WordPressPublication`.
+- Restrição mantida: envio apenas como `draft`, sem publicação final automática.
 
 ---
 
@@ -376,7 +377,9 @@ Boas práticas:
 - `OpenAiClient`: implementação atual (OpenAI).
 
 ## Services/WordPress
-- Estado: 🧭 planejado.
+- `WordPressClient`: encapsula chamadas HTTP e autenticação Basic com Application Password.
+- `WordPressPostPublisher`: monta payload e aplica regras de envio do MVP (`draft`).
+- `WordPressException`: tipifica falhas de integração para tratamento nos jobs/resources.
 
 ### Regras arquiteturais
 - Jobs **orquestram** etapas assíncronas.
@@ -486,7 +489,7 @@ Cuidados:
 | `GeneratedPostResource` | `GeneratedPost` | Revisão editorial e versionamento | gerar artigo/metadados, auditoria SEO/editorial, aprovar, criar versão |
 
 ### Recursos planejados
-- Resource específico para `WordPressPublication` e ações de envio/reenvio dedicadas.
+- Resource de `WordPressPublication` já existe para consulta de histórico; evoluções futuras incluem ações avançadas de reenvio com políticas de retry.
 
 ### Diretrizes
 - Actions devem respeitar status atual.
@@ -510,8 +513,8 @@ Cuidados:
 - Com Docker: `docker compose exec app php artisan test`
 
 ### Estado atual desta snapshot
-- Pasta `tests` não está versionada aqui.
-- Ainda assim, recomenda-se ampliar cobertura para:
+- A pasta `tests` está versionada com cobertura inicial de fluxos principais (`DocumentFlow`, `BriefFlow`, `OutlineGeneration`, `PostFlow`, `WordPressClient`).
+- Recomenda-se ampliar cobertura para:
   - extração/chunking
   - embeddings/search
   - geração de outline
@@ -677,7 +680,6 @@ Ciclo sugerido de revisão:
 
 ## Apêndice — diferenças importantes entre “esperado” e “atual”
 
-1. `README.md` não está presente nesta snapshot local; portanto não foi possível adicionar link para este guia nesta tarefa.
-2. `docker-compose.yml` não está presente nesta snapshot local (somente referência de stack esperada).
-3. `config/database.php`, `config/queue.php` e `config/filesystems.php` não estão presentes nesta snapshot local.
-4. O repositório já implementa partes editoriais além do básico: `GeneratedPost`, `PostVersion`, `SeoAudit` e também integração WordPress draft com `WordPressPublication` (model, migration, services, job e resource).
+1. O repositório atual está focado no núcleo do MVP e não inclui todos os arquivos-padrão de um skeleton Laravel completo (por exemplo, `config/database.php`, `config/queue.php`, `config/filesystems.php` e arquivos em `routes/`).
+2. Apesar disso, há implementação funcional relevante de pipeline: ingestão de documentos, busca semântica, geração de outline e envio para WordPress como draft com auditoria.
+3. Recursos editoriais (`GeneratedPost`, `PostVersion`, `SeoAudit`) e trilha de LLM/WordPress já existem, mas parte da governança editorial avançada ainda está em evolução.
