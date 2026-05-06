@@ -14,6 +14,8 @@ class ContentBrief extends Model
 
     public const STATUS_DRAFT = 'draft';
     public const STATUS_READY_TO_GENERATE = 'ready_to_generate';
+    public const STATUS_GENERATING = 'generating';
+    public const STATUS_GENERATED_OUTLINE = 'generated_outline';
 
     protected $fillable = [
         'title',
