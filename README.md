@@ -71,4 +71,5 @@ MVP em Laravel para geração de conteúdo SEO com apoio de LLM, com revisão hu
 - **Erro de OpenAI/LLM**: confira `OPENAI_API_KEY`, modelo e logs em `llm_runs`.
 
 ## Documentação complementar
-Veja `docs/` para detalhes funcionais por feature e guias técnicos.
+- Checklist de release do MVP inicial: `docs/MVP_RELEASE_CHECKLIST.md`
+- Veja `docs/` para detalhes funcionais por feature e guias técnicos.
