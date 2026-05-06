@@ -70,6 +70,11 @@ class GeneratedPost extends Model
         return $this->hasOne(SeoAudit::class)->where('audit_type', 'editorial')->latestOfMany();
     }
 
+    public function wordpressPublications(): HasMany
+    {
+        return $this->hasMany(WordPressPublication::class)->latest();
+    }
+
     /** @return array<string, string> */
     public static function reviewStatusOptions(): array
     {

@@ -6,10 +6,13 @@ use App\Filament\Resources\GeneratedPostResource\Pages;
 use App\Filament\Resources\GeneratedPostResource\RelationManagers\PostVersionsRelationManager;
 use App\Models\GeneratedPost;
 use App\Models\LlmRun;
+use App\Models\WordPressPublication;
+use App\Jobs\SendPostToWordPressJob;
 use App\Services\Content\PostVersionService;
 use App\Services\Content\EditorialAuditService;
 use App\Services\Content\MetadataGeneratorService;
 use App\Services\Content\SeoAuditService;
+use App\Services\WordPress\WordPressException;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
@@ -184,6 +187,12 @@ class GeneratedPostResource extends Resource
             Tables\Columns\TextColumn::make('tone_score')->label('Tone')->sortable(),
             Tables\Columns\TextColumn::make('readability_score')->label('Readability')->sortable(),
             Tables\Columns\TextColumn::make('updated_at')->dateTime('d/m/Y H:i')->sortable(),
+            Tables\Columns\TextColumn::make('wordpressPublications.0.wordpress_url')
+                ->label('URL WordPress (draft)')
+                ->url(fn (?string $state): ?string => $state)
+                ->openUrlInNewTab()
+                ->placeholder('-')
+                ->toggleable(),
         ])->actions([
             Tables\Actions\ViewAction::make(),
             Tables\Actions\EditAction::make(),
@@ -193,6 +202,7 @@ class GeneratedPostResource extends Resource
             self::makeApproveAction(),
             self::makeRequestAdjustmentsAction(),
             self::makeBackToReviewAction(),
+            self::makeSendToWordPressAction(),
         ]);
     }
 
@@ -375,6 +385,34 @@ class GeneratedPostResource extends Resource
             ->action(function (GeneratedPost $record): void {
                 $record->update(['status' => GeneratedPost::STATUS_NEEDS_REVIEW]);
                 Notification::make()->title('Post retornou para revisão.')->success()->send();
+            });
+    }
+
+    public static function makeSendToWordPressAction(): Action
+    {
+        return Action::make('send_to_wordpress')
+            ->label('Enviar para WordPress')
+            ->icon('heroicon-o-paper-airplane')
+            ->color('info')
+            ->requiresConfirmation()
+            ->visible(fn (GeneratedPost $record): bool => $record->status === GeneratedPost::STATUS_APPROVED)
+            ->action(function (GeneratedPost $record): void {
+                try {
+                    SendPostToWordPressJob::dispatchSync($record->id, auth()->id());
+                    $latestPublication = $record->refresh()->wordpressPublications()->first();
+
+                    Notification::make()
+                        ->title('Rascunho enviado ao WordPress.')
+                        ->body($latestPublication?->wordpress_url ? 'URL: '.$latestPublication->wordpress_url : 'WordPress retornou sem URL pública para o draft.')
+                        ->success()
+                        ->send();
+                } catch (WordPressException $exception) {
+                    Notification::make()
+                        ->title('Falha ao enviar para WordPress.')
+                        ->body($exception->getMessage())
+                        ->danger()
+                        ->send();
+                }
             });
     }
 }
