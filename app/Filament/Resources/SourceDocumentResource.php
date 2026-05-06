@@ -68,7 +68,6 @@ class SourceDocumentResource extends Resource
                     'extracted' => 'extracted',
                     'chunking' => 'chunking',
                     'chunked' => 'chunked',
-                    'embedded_pending' => 'embedded_pending',
                     'failed' => 'failed',
                 ]),
                 Tables\Filters\SelectFilter::make('file_type')->options(['txt' => 'txt', 'pdf' => 'pdf', 'docx' => 'docx']),

@@ -24,7 +24,7 @@
    - `chunk_index` sequencial iniciando em `0`.
    - `embedding = null`.
    - `metadata` com dados básicos do chunking.
-5. Atualizar status final para `embedded_pending`.
+5. Atualizar status final para `chunked`.
 6. Em falha, atualizar status para `failed` e registrar logs.
 
 ## Como reprocessar
@@ -39,7 +39,7 @@
 2. Garantir um `SourceDocument` em status `extracted` com `extracted_text_path` válido.
 3. Acionar **Gerar chunks** no Filament.
 4. Verificar:
-   - status vai para `chunking` e depois `embedded_pending`;
+   - status vai para `chunking` e depois `chunked`;
    - chunks persistidos em `document_chunks`;
    - `chunk_index` sequencial;
    - `embedding` nulo;
