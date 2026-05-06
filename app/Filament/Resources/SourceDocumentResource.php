@@ -7,6 +7,7 @@ use App\Jobs\ChunkDocumentJob;
 use App\Jobs\ExtractDocumentTextJob;
 use App\Jobs\GenerateDocumentEmbeddingsJob;
 use App\Models\SourceDocument;
+use App\Services\Documents\DocumentSearchService;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
@@ -128,6 +129,56 @@ class SourceDocumentResource extends Resource
                     ->modalContent(fn (SourceDocument $record) => view('filament.source-document.extracted-text', [
                         'text' => Storage::disk('local')->get($record->extracted_text_path),
                     ])),
+
+                Action::make('semanticSearchPreview')
+                    ->label('Preview busca semântica')
+                    ->icon('heroicon-o-magnifying-glass')
+                    ->form([
+                        Forms\Components\Textarea::make('query')
+                            ->label('Consulta')
+                            ->rows(3)
+                            ->required(),
+                        Forms\Components\TextInput::make('limit')
+                            ->label('Limite')
+                            ->numeric()
+                            ->default(8)
+                            ->minValue(1)
+                            ->maxValue(30),
+                    ])
+                    ->action(function (array $data, DocumentSearchService $searchService): void {
+                        $results = $searchService->search((string) $data['query'], (int) ($data['limit'] ?? 8));
+
+                        if ($results->isEmpty()) {
+                            Notification::make()
+                                ->title('Nenhum chunk encontrado')
+                                ->body('A busca semântica não encontrou chunks relevantes com embedding.')
+                                ->warning()
+                                ->send();
+
+                            return;
+                        }
+
+                        $preview = $results
+                            ->map(fn ($chunk) => sprintf(
+                                'Doc #%d | Chunk %d | Similaridade %.4f
+%s',
+                                $chunk->source_document_id,
+                                $chunk->chunk_index,
+                                (float) $chunk->similarity,
+                                mb_strimwidth(preg_replace('/\s+/', ' ', $chunk->content), 0, 140, '...')
+                            ))
+                            ->implode("
+
+");
+
+                        Notification::make()
+                            ->title('Resultados da busca semântica')
+                            ->body($preview)
+                            ->success()
+                            ->persistent()
+                            ->send();
+                    }),
+
                 Action::make('download')
                     ->label('Baixar/Abrir')
                     ->icon('heroicon-o-arrow-down-tray')
