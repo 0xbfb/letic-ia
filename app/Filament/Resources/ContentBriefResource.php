@@ -27,9 +27,9 @@ class ContentBriefResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\TextInput::make('title')->label('Título')->required()->maxLength(255),
+            Forms\Components\TextInput::make('title')->label('Título do briefing')->required()->maxLength(255)->placeholder('Ex.: Briefing artigo SEO sobre funil de vendas'),
             Forms\Components\TextInput::make('content_type')->label('Tipo de conteúdo')->maxLength(100),
-            Forms\Components\TextInput::make('main_keyword')->label('Palavra-chave principal')->required()->maxLength(255),
+            Forms\Components\TextInput::make('main_keyword')->label('Palavra-chave principal')->required()->maxLength(255)->placeholder('Ex.: automação de marketing'),
             Forms\Components\TagsInput::make('secondary_keywords')->label('Palavras-chave secundárias')->placeholder('Digite e pressione Enter'),
             Forms\Components\Select::make('sourceDocuments')
                 ->label('Documentos obrigatórios (seleção manual)')
@@ -38,28 +38,21 @@ class ContentBriefResource extends Resource
                 ->searchable()
                 ->preload()
                 ->helperText('Quando selecionados, a busca de contexto é restrita a estes documentos.'),
-            Forms\Components\TextInput::make('target_audience')->label('Público-alvo')->required()->maxLength(255),
+            Forms\Components\TextInput::make('target_audience')->label('Público-alvo')->required()->maxLength(255)->placeholder('Ex.: gestores de marketing B2B'),
             Forms\Components\Select::make('search_intent')->label('Intenção de busca')->required()->options([
                 'informational' => 'Informacional',
                 'navigational' => 'Navegacional',
                 'commercial' => 'Comercial',
                 'transactional' => 'Transacional',
             ]),
-            Forms\Components\TextInput::make('business_objective')->label('Objetivo de negócio')->required()->maxLength(255),
-            Forms\Components\TextInput::make('tone_of_voice')->label('Tom de voz')->required()->maxLength(255),
+            Forms\Components\TextInput::make('business_objective')->label('Objetivo de negócio')->required()->maxLength(255)->placeholder('Ex.: gerar leads qualificados'),
+            Forms\Components\TextInput::make('tone_of_voice')->label('Tom de voz')->required()->maxLength(255)->placeholder('Ex.: consultivo e didático'),
             Forms\Components\TextInput::make('cta_goal')->label('Objetivo de CTA')->maxLength(255),
-            Forms\Components\TextInput::make('minimum_words')->label('Mínimo de palavras')->numeric()->minValue(1),
-            Forms\Components\TextInput::make('maximum_words')->label('Máximo de palavras')->numeric()->minValue(1),
+            Forms\Components\TextInput::make('minimum_words')->label('Mínimo de palavras')->numeric()->minValue(1)->placeholder('Ex.: 1200'),
+            Forms\Components\TextInput::make('maximum_words')->label('Máximo de palavras')->numeric()->minValue(1)->placeholder('Ex.: 1800'),
             Forms\Components\TagsInput::make('mandatory_sources')->label('Fontes obrigatórias (legado)')->placeholder('URL, título ou referência'),
             Forms\Components\Textarea::make('notes')->label('Notas')->rows(4),
-            Forms\Components\Select::make('status')->label('Status')->options([
-                ContentBrief::STATUS_DRAFT => 'draft',
-                ContentBrief::STATUS_READY_TO_GENERATE => 'ready_to_generate',
-                ContentBrief::STATUS_GENERATING => 'generating',
-                ContentBrief::STATUS_GENERATED_OUTLINE => 'generated_outline',
-                ContentBrief::STATUS_GENERATED_ARTICLE => 'generated_article',
-                ContentBrief::STATUS_GENERATED_ARTICLE => 'generated_article',
-            ])->default(ContentBrief::STATUS_DRAFT)->required(),
+            Forms\Components\Select::make('status')->label('Status')->options(ContentBrief::statusOptions())->default(ContentBrief::STATUS_DRAFT)->required(),
             Forms\Components\Hidden::make('created_by'),
         ]);
     }
@@ -70,16 +63,10 @@ class ContentBriefResource extends Resource
             Tables\Columns\TextColumn::make('title')->label('Título')->searchable()->sortable(),
             Tables\Columns\TextColumn::make('content_type')->label('Tipo')->sortable()->toggleable(),
             Tables\Columns\TextColumn::make('main_keyword')->label('Palavra-chave principal')->searchable()->limit(50),
-            Tables\Columns\TextColumn::make('status')->label('Status')->badge()->sortable(),
+            Tables\Columns\TextColumn::make('status')->label('Status')->badge()->formatStateUsing(fn (string $state): string => ContentBrief::statusOptions()[$state] ?? $state)->colors(ContentBrief::statusColors())->sortable(),
             Tables\Columns\TextColumn::make('created_at')->label('Criado em')->dateTime('d/m/Y H:i')->sortable(),
         ])->filters([
-            Tables\Filters\SelectFilter::make('status')->options([
-                ContentBrief::STATUS_DRAFT => 'draft',
-                ContentBrief::STATUS_READY_TO_GENERATE => 'ready_to_generate',
-                ContentBrief::STATUS_GENERATING => 'generating',
-                ContentBrief::STATUS_GENERATED_OUTLINE => 'generated_outline',
-                ContentBrief::STATUS_GENERATED_ARTICLE => 'generated_article',
-            ]),
+            Tables\Filters\SelectFilter::make('status')->options(ContentBrief::statusOptions()),
             Tables\Filters\SelectFilter::make('content_type'),
         ])->actions([
             Tables\Actions\EditAction::make(),
@@ -146,19 +133,19 @@ class ContentBriefResource extends Resource
                 ->modalSubmitAction(false)
                 ->modalCancelActionLabel('Fechar')
                 ->action(fn () => null),
-            Action::make('markReadyToGenerate')->label('Marcar como ready_to_generate')->icon('heroicon-o-play')
+            Action::make('markReadyToGenerate')->label('Marcar como pronto para gerar')->icon('heroicon-o-play')
                 ->visible(fn (ContentBrief $record): bool => $record->status !== ContentBrief::STATUS_READY_TO_GENERATE)
                 ->requiresConfirmation()
                 ->action(function (ContentBrief $record): void {
                     $record->update(['status' => ContentBrief::STATUS_READY_TO_GENERATE]);
-                    Notification::make()->title('Briefing marcado como ready_to_generate')->success()->send();
+                    Notification::make()->title('Briefing marcado como pronto para gerar.')->success()->send();
                 }),
             Action::make('markDraft')->label('Voltar para draft')->icon('heroicon-o-arrow-uturn-left')
                 ->visible(fn (ContentBrief $record): bool => $record->status !== ContentBrief::STATUS_DRAFT)
                 ->requiresConfirmation()
                 ->action(function (ContentBrief $record): void {
                     $record->update(['status' => ContentBrief::STATUS_DRAFT]);
-                    Notification::make()->title('Briefing voltou para draft')->success()->send();
+                    Notification::make()->title('Briefing voltou para rascunho.')->success()->send();
                 }),
         ]);
     }

@@ -29,8 +29,8 @@ class SourceDocumentResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('title')->label('Título')->required()->maxLength(255),
-                Forms\Components\Textarea::make('description')->label('Descrição')->rows(3)->maxLength(2000),
+                Forms\Components\TextInput::make('title')->label('Título do documento')->required()->maxLength(255)->placeholder('Ex.: Guia completo de SEO local 2026'),
+                Forms\Components\Textarea::make('description')->label('Descrição')->rows(3)->maxLength(2000)->placeholder('Contexto opcional para facilitar a reutilização editorial.'),
                 Forms\Components\Select::make('source_type')->label('Tipo de fonte')->options(['upload' => 'Upload'])->default('upload')->required(),
                 Forms\Components\FileUpload::make('file_path')
                     ->label('Arquivo')
@@ -59,21 +59,12 @@ class SourceDocumentResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('title')->label('Título')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('file_type')->label('Tipo')->badge()->sortable(),
-                Tables\Columns\TextColumn::make('status')->label('Status')->badge()->sortable(),
+                Tables\Columns\TextColumn::make('status')->label('Status')->badge()->formatStateUsing(fn (string $state): string => SourceDocument::statusOptions()[$state] ?? $state)->colors(SourceDocument::statusColors())->sortable(),
                 Tables\Columns\TextColumn::make('created_at')->label('Criado em')->dateTime('d/m/Y H:i')->sortable(),
                 Tables\Columns\TextColumn::make('file_path')->label('Caminho do arquivo')->copyable()->limit(50)->tooltip(fn ($record) => $record->file_path),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')->options([
-                    'uploaded' => 'uploaded',
-                    'extracting' => 'extracting',
-                    'extracted' => 'extracted',
-                    'chunking' => 'chunking',
-                    'chunked' => 'chunked',
-                    'embedding' => 'embedding',
-                    'embedded' => 'embedded',
-                    'failed' => 'failed',
-                ]),
+                Tables\Filters\SelectFilter::make('status')->options(SourceDocument::statusOptions()),
                 Tables\Filters\SelectFilter::make('file_type')->options(['txt' => 'txt', 'pdf' => 'pdf', 'docx' => 'docx']),
             ])
             ->actions([
