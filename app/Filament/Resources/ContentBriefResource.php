@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ContentBriefResource\Pages;
+use App\Jobs\GenerateOutlineFromBriefJob;
 use App\Models\ContentBrief;
 use App\Models\SourceDocument;
 use App\Services\Content\BriefingBuilderService;
@@ -53,6 +54,8 @@ class ContentBriefResource extends Resource
             Forms\Components\Select::make('status')->label('Status')->options([
                 ContentBrief::STATUS_DRAFT => 'draft',
                 ContentBrief::STATUS_READY_TO_GENERATE => 'ready_to_generate',
+                ContentBrief::STATUS_GENERATING => 'generating',
+                ContentBrief::STATUS_GENERATED_OUTLINE => 'generated_outline',
             ])->default(ContentBrief::STATUS_DRAFT)->required(),
             Forms\Components\Hidden::make('created_by'),
         ]);
@@ -70,6 +73,8 @@ class ContentBriefResource extends Resource
             Tables\Filters\SelectFilter::make('status')->options([
                 ContentBrief::STATUS_DRAFT => 'draft',
                 ContentBrief::STATUS_READY_TO_GENERATE => 'ready_to_generate',
+                ContentBrief::STATUS_GENERATING => 'generating',
+                ContentBrief::STATUS_GENERATED_OUTLINE => 'generated_outline',
             ]),
             Tables\Filters\SelectFilter::make('content_type'),
         ])->actions([
@@ -100,6 +105,34 @@ class ContentBriefResource extends Resource
                 ->color('gray')
                 ->failureNotificationTitle('Falha ao montar contexto')
                 ->successNotificationTitle('Contexto carregado'),
+            Action::make('generateOutline')
+                ->label('Gerar outline')
+                ->icon('heroicon-o-sparkles')
+                ->visible(fn (ContentBrief $record): bool => $record->status === ContentBrief::STATUS_READY_TO_GENERATE)
+                ->requiresConfirmation()
+                ->action(function (ContentBrief $record): void {
+                    $record->update(['status' => ContentBrief::STATUS_GENERATING]);
+                    GenerateOutlineFromBriefJob::dispatch($record->id);
+                    Notification::make()->title('Geração de outline iniciada')->success()->send();
+                }),
+            Action::make('viewOutline')
+                ->label('Ver outline')
+                ->icon('heroicon-o-document-text')
+                ->visible(fn (ContentBrief $record): bool => filled(data_get($record->metadata, 'outline')))
+                ->infolist(fn (ContentBrief $record): array => [
+                    TextEntry::make('h1')->label('H1')->state((string) data_get($record->metadata, 'outline.h1', '')),
+                    TextEntry::make('intro_objective')->label('Objetivo da introdução')->state((string) data_get($record->metadata, 'outline.intro_objective', '')),
+                    RepeatableEntry::make('sections')->label('Seções')->state(data_get($record->metadata, 'outline.sections', []))->schema([
+                        TextEntry::make('heading')->label('Heading'),
+                        TextEntry::make('objective')->label('Objetivo'),
+                        TextEntry::make('key_points')->label('Pontos-chave')->listWithLineBreaks(),
+                    ]),
+                    TextEntry::make('cta_plan')->label('Plano de CTA')->state(json_encode(data_get($record->metadata, 'outline.cta_plan', []), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)),
+                ])
+                ->modalWidth('5xl')
+                ->modalSubmitAction(false)
+                ->modalCancelActionLabel('Fechar')
+                ->action(fn () => null),
             Action::make('markReadyToGenerate')->label('Marcar como ready_to_generate')->icon('heroicon-o-play')
                 ->visible(fn (ContentBrief $record): bool => $record->status !== ContentBrief::STATUS_READY_TO_GENERATE)
                 ->requiresConfirmation()
